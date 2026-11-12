@@ -1,0 +1,10 @@
+{
+  "description": "A Chinese reporting workspace for analysts to build interactive charts, pivot tables, and report templates, then generate, edit, and review data-driven reports.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

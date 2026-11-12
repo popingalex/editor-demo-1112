@@ -1,0 +1,114 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui,
+    sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-500: #4c6ef5;
+  --color-brand-600: #3b5bdb;
+  --color-brand-700: #364fc7;
+  --color-canvas: #f4f5f7;
+  --color-line: #e4e7ec;
+  --color-ink: #101828;
+  --color-ink-2: #344054;
+  --color-ink-3: #667085;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum" 1;
+  }
+  ::selection {
+    background: #c7d2fe;
+  }
+}
+
+/* scrollbars */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d0d5dd transparent;
+}
+
+/* ---------- Tiptap report document ---------- */
+.report-doc {
+  outline: none;
+  color: #1d2939;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.report-doc h1 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 4px 0 14px;
+  letter-spacing: -0.01em;
+}
+.report-doc h2 {
+  font-size: 18px;
+  font-weight: 650;
+  margin: 26px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eaecf0;
+}
+.report-doc h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 18px 0 6px;
+}
+.report-doc p {
+  margin: 6px 0;
+}
+.report-doc ul {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 6px 0;
+}
+.report-doc ol {
+  list-style: decimal;
+  padding-left: 22px;
+  margin: 6px 0;
+}
+.report-doc blockquote {
+  border-left: 3px solid #c7d2fe;
+  padding-left: 12px;
+  color: #475467;
+}
+.report-doc strong {
+  font-weight: 650;
+}
+.report-doc .ProseMirror-selectednode > [data-asset-node] {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+.report-doc .ProseMirror-selectednode[data-var-node] > span,
+.report-doc .ProseMirror-selectednode > [data-var-chip] {
+  outline: 2px solid var(--color-brand-500);
+}
+.report-doc p.is-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #98a2b3;
+  float: left;
+  pointer-events: none;
+  height: 0;
+}
+.ProseMirror:focus {
+  outline: none;
+}
+.ProseMirror-gapcursor:after {
+  border-top: 2px solid #4c6ef5;
+}

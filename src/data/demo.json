@@ -1,0 +1,2382 @@
+{
+  "meta": {
+    "version": "reporting-components-demo/3.0",
+    "title": "报表、图表和综合报告组件原型数据集",
+    "locale": "zh-CN",
+    "status": "SYNTHETIC_DEMO",
+    "seedFile": "DEMO_数据合同.json",
+    "notes": "所有运行ID、名称、数值、任务、文本、模板和版本均为演示，不属于真实业务结果。",
+    "editorDocumentNote": "reportTemplates[].doc 采用 Tiptap 风格 JSON；chartAsset/tableAsset 是待注册的演示自定义节点类型。",
+    "designAssetsNote": "固定模板 gridModel 为可编辑版式种子；表格动态行、分页及合并均由原型交互实现。"
+  },
+  "dataCatalog": [
+    {
+      "id": "resourceInput",
+      "label": "资源投入明细",
+      "source": "SEED_EXACT",
+      "grain": ["simulationId", "branch", "tick", "unitId", "targetId"],
+      "measure": "demo_amount",
+      "unit": "演示量"
+    },
+    {
+      "id": "resourceSplit",
+      "label": "资源类型拆分明细",
+      "source": "DEMO_EXTENDED_DERIVED",
+      "grain": ["simulationId", "branch", "tick", "unitId", "targetId", "resourceCategory"],
+      "measure": "demo_amount",
+      "unit": "演示量"
+    },
+    {
+      "id": "transferProgress",
+      "label": "转移进度时间序列",
+      "source": "DEMO_EXTENDED_SYNTHETIC",
+      "grain": ["simulationId", "branch", "tick", "targetId"],
+      "measure": "transferredCount",
+      "unit": "人（合成示例）"
+    },
+    {
+      "id": "taskSchedule",
+      "label": "任务计划和进度",
+      "source": "DEMO_EXTENDED_SYNTHETIC",
+      "grain": ["simulationId", "taskId"],
+      "measure": "progressPercent",
+      "unit": "%"
+    },
+    {
+      "id": "componentSeries",
+      "label": "属性状态样例",
+      "source": "SEED_EXACT",
+      "grain": ["simulationId", "branch", "tick", "entityId", "fieldId"],
+      "measure": "value",
+      "unit": null
+    },
+    {
+      "id": "printStressRows",
+      "label": "分页演示明细",
+      "source": "DEMO_EXTENDED_PRINT_ONLY",
+      "grain": ["rowId"],
+      "measure": "quantity",
+      "unit": "演示量",
+      "notForResourceAggregation": true
+    },
+    {
+      "id": "dualMetric",
+      "label": "资源投入与转移进度双指标视图",
+      "source": "DEMO_DERIVED_JOIN",
+      "grain": ["simulationId", "branch", "tick"],
+      "measure": ["demo_amount", "completionPercent"],
+      "notes": "resourceInput 缺少 Tick0 原始记录时 demo_amount 为 null，不补零"
+    }
+  ],
+  "dimensions": {
+    "units": [
+      {
+        "id": "U-A",
+        "displayName": "救援一队（演示）"
+      },
+      {
+        "id": "U-B",
+        "displayName": "救援二队（演示）"
+      }
+    ],
+    "targets": [
+      {
+        "id": "T-1",
+        "displayName": "东区目标（演示）"
+      },
+      {
+        "id": "T-2",
+        "displayName": "西区目标（演示）"
+      }
+    ],
+    "resourceCategories": [
+      {
+        "id": "personnel",
+        "displayName": "人员投入（演示）"
+      },
+      {
+        "id": "equipment",
+        "displayName": "装备投入（演示）"
+      }
+    ],
+    "taskStatuses": [
+      {
+        "id": "planned",
+        "displayName": "待开始"
+      },
+      {
+        "id": "in_progress",
+        "displayName": "进行中"
+      },
+      {
+        "id": "done",
+        "displayName": "已完成"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "simulationId": "DEMO-RUN-A",
+      "branchNames": ["main"],
+      "headByBranch": {
+        "main": 2
+      },
+      "label": "演示运行 A（合成）"
+    },
+    {
+      "simulationId": "DEMO-RUN-B",
+      "branchNames": ["main"],
+      "headByBranch": {
+        "main": 2
+      },
+      "label": "演示运行 B（合成）"
+    },
+    {
+      "simulationId": "DEMO-LIVE-HEAD0",
+      "branchNames": ["main"],
+      "headByBranch": {
+        "main": 0
+      },
+      "label": "只有 Tick 0 的演示运行"
+    }
+  ],
+  "fields": [
+    {
+      "id": "casualty/threat_dose",
+      "displayName": "威胁剂量",
+      "unit": null,
+      "type": "number",
+      "valuesAreSynthetic": true
+    },
+    {
+      "id": "water_sprayer/is_spraying",
+      "displayName": "正在喷水",
+      "unit": null,
+      "type": "boolean",
+      "valuesAreSynthetic": true
+    }
+  ],
+  "datasets": {
+    "resourceInput": [
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "demo_amount": 10,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "demo_amount": 5,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "demo_amount": 7,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "demo_amount": 2,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "demo_amount": 12,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "demo_amount": 6,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "demo_amount": 8,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "demo_amount": 4,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "demo_amount": 7,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "demo_amount": 3,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "demo_amount": 5,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "demo_amount": 1,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "demo_amount": 9,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "demo_amount": 4,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "demo_amount": 6,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "demo_amount": 2,
+        "provenance": "DEMO_SYNTHETIC"
+      }
+    ],
+    "resourceSplit": [
+      {
+        "recordId": "RS-001-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 6,
+        "sourceRecordId": "R-001",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-001-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 4,
+        "sourceRecordId": "R-001",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-002-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 3,
+        "sourceRecordId": "R-002",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-002-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 2,
+        "sourceRecordId": "R-002",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-003-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 4,
+        "sourceRecordId": "R-003",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-003-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 3,
+        "sourceRecordId": "R-003",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-004-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 1,
+        "sourceRecordId": "R-004",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-004-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 1,
+        "sourceRecordId": "R-004",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-005-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 7,
+        "sourceRecordId": "R-005",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-005-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 5,
+        "sourceRecordId": "R-005",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-006-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 4,
+        "sourceRecordId": "R-006",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-006-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 2,
+        "sourceRecordId": "R-006",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-007-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 5,
+        "sourceRecordId": "R-007",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-007-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 3,
+        "sourceRecordId": "R-007",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-008-P",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 2,
+        "sourceRecordId": "R-008",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-008-E",
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 2,
+        "sourceRecordId": "R-008",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-009-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 4,
+        "sourceRecordId": "R-009",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-009-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 3,
+        "sourceRecordId": "R-009",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-010-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 2,
+        "sourceRecordId": "R-010",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-010-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 1,
+        "sourceRecordId": "R-010",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-011-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 3,
+        "sourceRecordId": "R-011",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-011-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 2,
+        "sourceRecordId": "R-011",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-012-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 1,
+        "sourceRecordId": "R-012",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-012-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 0,
+        "sourceRecordId": "R-012",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-013-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 5,
+        "sourceRecordId": "R-013",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-013-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 4,
+        "sourceRecordId": "R-013",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-014-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 2,
+        "sourceRecordId": "R-014",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-014-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 2,
+        "sourceRecordId": "R-014",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-015-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "personnel",
+        "demo_amount": 4,
+        "sourceRecordId": "R-015",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-015-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "resourceCategory": "equipment",
+        "demo_amount": 2,
+        "sourceRecordId": "R-015",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-016-P",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "personnel",
+        "demo_amount": 1,
+        "sourceRecordId": "R-016",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      },
+      {
+        "recordId": "RS-016-E",
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "resourceCategory": "equipment",
+        "demo_amount": 1,
+        "sourceRecordId": "R-016",
+        "provenance": "DEMO_EXTENDED_DERIVED"
+      }
+    ],
+    "transferProgress": [
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 0,
+        "targetId": "T-1",
+        "transferredCount": 0,
+        "targetCount": 12,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "targetId": "T-1",
+        "transferredCount": 4,
+        "targetCount": 12,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "targetId": "T-1",
+        "transferredCount": 8,
+        "targetCount": 12,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 0,
+        "targetId": "T-2",
+        "transferredCount": 0,
+        "targetCount": 8,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "targetId": "T-2",
+        "transferredCount": 2,
+        "targetCount": 8,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "targetId": "T-2",
+        "transferredCount": 4,
+        "targetCount": 8,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 0,
+        "targetId": "T-1",
+        "transferredCount": 0,
+        "targetCount": 12,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "targetId": "T-1",
+        "transferredCount": 3,
+        "targetCount": 12,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "targetId": "T-1",
+        "transferredCount": 5,
+        "targetCount": 12,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 0,
+        "targetId": "T-2",
+        "transferredCount": 0,
+        "targetCount": 8,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "targetId": "T-2",
+        "transferredCount": 1,
+        "targetCount": 8,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "targetId": "T-2",
+        "transferredCount": 3,
+        "targetCount": 8,
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      }
+    ],
+    "taskSchedule": [
+      {
+        "simulationId": "DEMO-RUN-A",
+        "taskId": "TK-A-001",
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "title": "目标侦察",
+        "startMinute": 0,
+        "endMinute": 35,
+        "progressPercent": 100,
+        "status": "done",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "taskId": "TK-A-002",
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "title": "资源转运",
+        "startMinute": 30,
+        "endMinute": 95,
+        "progressPercent": 85,
+        "status": "in_progress",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "taskId": "TK-A-003",
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "title": "人员疏散",
+        "startMinute": 45,
+        "endMinute": 118,
+        "progressPercent": 70,
+        "status": "in_progress",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "taskId": "TK-A-004",
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "title": "设施检查",
+        "startMinute": 75,
+        "endMinute": 145,
+        "progressPercent": 35,
+        "status": "in_progress",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "taskId": "TK-A-005",
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "title": "现场保障",
+        "startMinute": 110,
+        "endMinute": 185,
+        "progressPercent": 0,
+        "status": "planned",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "taskId": "TK-A-006",
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "title": "任务复核",
+        "startMinute": 150,
+        "endMinute": 205,
+        "progressPercent": 0,
+        "status": "planned",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "taskId": "TK-B-001",
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "title": "目标侦察",
+        "startMinute": 0,
+        "endMinute": 42,
+        "progressPercent": 100,
+        "status": "done",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "taskId": "TK-B-002",
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "title": "资源转运",
+        "startMinute": 35,
+        "endMinute": 112,
+        "progressPercent": 65,
+        "status": "in_progress",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "taskId": "TK-B-003",
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "title": "人员疏散",
+        "startMinute": 60,
+        "endMinute": 142,
+        "progressPercent": 55,
+        "status": "in_progress",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "taskId": "TK-B-004",
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "title": "设施检查",
+        "startMinute": 95,
+        "endMinute": 165,
+        "progressPercent": 15,
+        "status": "in_progress",
+        "provenance": "DEMO_EXTENDED_SYNTHETIC"
+      }
+    ],
+    "componentSeries": [
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 0,
+        "entityId": "DEMO-ENTITY-01",
+        "fieldId": "casualty/threat_dose",
+        "value": 0.1,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "entityId": "DEMO-ENTITY-01",
+        "fieldId": "casualty/threat_dose",
+        "value": 0.15,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "entityId": "DEMO-ENTITY-01",
+        "fieldId": "casualty/threat_dose",
+        "value": 0.18,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 0,
+        "entityId": "DEMO-ENTITY-02",
+        "fieldId": "water_sprayer/is_spraying",
+        "value": false,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "entityId": "DEMO-ENTITY-02",
+        "fieldId": "water_sprayer/is_spraying",
+        "value": true,
+        "provenance": "DEMO_SYNTHETIC"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "entityId": "DEMO-ENTITY-02",
+        "fieldId": "water_sprayer/is_spraying",
+        "value": true,
+        "provenance": "DEMO_SYNTHETIC"
+      }
+    ],
+    "printStressRows": [
+      {
+        "rowId": "PRINT-001",
+        "sequence": 1,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-002",
+        "sequence": 2,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-003",
+        "sequence": 3,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-004",
+        "sequence": 4,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-005",
+        "sequence": 5,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-006",
+        "sequence": 6,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-007",
+        "sequence": 7,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-008",
+        "sequence": 8,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-009",
+        "sequence": 9,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-010",
+        "sequence": 10,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-011",
+        "sequence": 11,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-012",
+        "sequence": 12,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-013",
+        "sequence": 13,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-014",
+        "sequence": 14,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-015",
+        "sequence": 15,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-016",
+        "sequence": 16,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-017",
+        "sequence": 17,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-018",
+        "sequence": 18,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-019",
+        "sequence": 19,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-020",
+        "sequence": 20,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-021",
+        "sequence": 21,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "物资调配",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-022",
+        "sequence": 22,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-023",
+        "sequence": 23,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-024",
+        "sequence": 24,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-025",
+        "sequence": 25,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-026",
+        "sequence": 26,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-027",
+        "sequence": 27,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-028",
+        "sequence": 28,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-029",
+        "sequence": 29,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-030",
+        "sequence": 30,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-031",
+        "sequence": 31,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-032",
+        "sequence": 32,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-033",
+        "sequence": 33,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-034",
+        "sequence": 34,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-035",
+        "sequence": 35,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-036",
+        "sequence": 36,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-037",
+        "sequence": 37,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-038",
+        "sequence": 38,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-039",
+        "sequence": 39,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-040",
+        "sequence": 40,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-041",
+        "sequence": 41,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-042",
+        "sequence": 42,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "目标转运",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-043",
+        "sequence": 43,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-044",
+        "sequence": 44,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-045",
+        "sequence": 45,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-046",
+        "sequence": 46,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-047",
+        "sequence": 47,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-048",
+        "sequence": 48,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-049",
+        "sequence": 49,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-050",
+        "sequence": 50,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-051",
+        "sequence": 51,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-052",
+        "sequence": 52,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-053",
+        "sequence": 53,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-054",
+        "sequence": 54,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-055",
+        "sequence": 55,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-056",
+        "sequence": 56,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-057",
+        "sequence": 57,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-058",
+        "sequence": 58,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-059",
+        "sequence": 59,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "设备巡检",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-060",
+        "sequence": 60,
+        "unitId": "U-B",
+        "targetId": "T-2",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 1,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-061",
+        "sequence": 61,
+        "unitId": "U-A",
+        "targetId": "T-1",
+        "itemName": "物资调配",
+        "note": "演示明细记录",
+        "quantity": 2,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-062",
+        "sequence": 62,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "目标转运",
+        "note": "演示明细记录",
+        "quantity": 3,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-063",
+        "sequence": 63,
+        "unitId": "U-A",
+        "targetId": "T-2",
+        "itemName": "设备巡检",
+        "note": "该行用于测试长文本换行、重复表头和跨页显示；",
+        "quantity": 4,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      },
+      {
+        "rowId": "PRINT-064",
+        "sequence": 64,
+        "unitId": "U-B",
+        "targetId": "T-1",
+        "itemName": "现场调查",
+        "note": "演示明细记录",
+        "quantity": 5,
+        "provenance": "DEMO_EXTENDED_PRINT_ONLY"
+      }
+    ],
+    "dualMetric": [
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 0,
+        "demo_amount": null,
+        "transferredCount": 0,
+        "targetCount": 20,
+        "completionPercent": 0.0,
+        "provenance": "DEMO_DERIVED_JOIN"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 1,
+        "demo_amount": 24,
+        "transferredCount": 6,
+        "targetCount": 20,
+        "completionPercent": 30.0,
+        "provenance": "DEMO_DERIVED_JOIN"
+      },
+      {
+        "simulationId": "DEMO-RUN-A",
+        "branch": "main",
+        "tick": 2,
+        "demo_amount": 30,
+        "transferredCount": 12,
+        "targetCount": 20,
+        "completionPercent": 60.0,
+        "provenance": "DEMO_DERIVED_JOIN"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 0,
+        "demo_amount": null,
+        "transferredCount": 0,
+        "targetCount": 20,
+        "completionPercent": 0.0,
+        "provenance": "DEMO_DERIVED_JOIN"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 1,
+        "demo_amount": 16,
+        "transferredCount": 4,
+        "targetCount": 20,
+        "completionPercent": 20.0,
+        "provenance": "DEMO_DERIVED_JOIN"
+      },
+      {
+        "simulationId": "DEMO-RUN-B",
+        "branch": "main",
+        "tick": 2,
+        "demo_amount": 21,
+        "transferredCount": 8,
+        "targetCount": 20,
+        "completionPercent": 40.0,
+        "provenance": "DEMO_DERIVED_JOIN"
+      }
+    ]
+  },
+  "assets": {
+    "charts": [
+      {
+        "assetId": "DEMO-CHART-01",
+        "revision": 3,
+        "title": "资源投入统计",
+        "assetType": "chart",
+        "chartType": "bar",
+        "dataSetId": "resourceInput",
+        "dimensions": ["unitId"],
+        "measure": "demo_amount",
+        "aggregation": "sum",
+        "viewParams": {
+          "simulationId": "DEMO-RUN-A",
+          "branch": "main",
+          "tick": 2
+        },
+        "provenance": "DEMO_ASSET"
+      },
+      {
+        "assetId": "DEMO-CHART-02",
+        "revision": 1,
+        "title": "投入变化趋势",
+        "assetType": "chart",
+        "chartType": "line",
+        "dataSetId": "resourceInput",
+        "dimensions": ["tick"],
+        "measure": "demo_amount",
+        "aggregation": "sum",
+        "viewParams": {
+          "simulationId": "DEMO-RUN-A",
+          "branch": "main",
+          "tick": 2
+        },
+        "provenance": "DEMO_ASSET"
+      },
+      {
+        "assetId": "DEMO-CHART-03",
+        "revision": 1,
+        "title": "资源投入与转移进度对比",
+        "assetType": "chart",
+        "chartType": "dualAxis",
+        "dataSetId": "dualMetric",
+        "dimensions": ["tick"],
+        "measure": "demo_amount",
+        "aggregation": "sum",
+        "viewParams": {
+          "simulationId": "DEMO-RUN-A",
+          "branch": "main",
+          "tick": 2
+        },
+        "provenance": "DEMO_ASSET",
+        "series": [
+          {
+            "field": "demo_amount",
+            "axis": "left",
+            "label": "资源投入（演示量）",
+            "chartType": "bar"
+          },
+          {
+            "field": "completionPercent",
+            "axis": "right",
+            "label": "转移完成率（%）",
+            "chartType": "line"
+          }
+        ]
+      },
+      {
+        "assetId": "DEMO-CHART-04",
+        "revision": 1,
+        "title": "资源投入流向",
+        "assetType": "chart",
+        "chartType": "sankey",
+        "dataSetId": "resourceSplit",
+        "dimensions": ["unitId", "resourceCategory", "targetId"],
+        "measure": "demo_amount",
+        "aggregation": "sum",
+        "viewParams": {
+          "simulationId": "DEMO-RUN-A",
+          "branch": "main",
+          "tick": 2
+        },
+        "provenance": "DEMO_ASSET"
+      },
+      {
+        "assetId": "DEMO-CHART-05",
+        "revision": 1,
+        "title": "任务执行甘特图",
+        "assetType": "chart",
+        "chartType": "gantt",
+        "dataSetId": "taskSchedule",
+        "dimensions": ["taskId"],
+        "measure": "progressPercent",
+        "aggregation": "none",
+        "provenance": "DEMO_ASSET"
+      },
+      {
+        "assetId": "DEMO-CHART-06",
+        "revision": 1,
+        "title": "转移人数进度",
+        "assetType": "chart",
+        "chartType": "area",
+        "dataSetId": "transferProgress",
+        "dimensions": ["tick"],
+        "measure": "transferredCount",
+        "aggregation": "sum",
+        "viewParams": {
+          "simulationId": "DEMO-RUN-A",
+          "branch": "main",
+          "tick": 2
+        },
+        "provenance": "DEMO_ASSET"
+      }
+    ],
+    "tables": [
+      {
+        "assetId": "DEMO-TABLE-01",
+        "revision": 2,
+        "title": "按单位资源投入汇总",
+        "assetType": "analysisTable",
+        "mode": "grouped",
+        "dataSetId": "resourceInput",
+        "groupBy": ["unitId"],
+        "measure": "demo_amount",
+        "aggregation": "sum",
+        "provenance": "DEMO_ASSET"
+      },
+      {
+        "assetId": "DEMO-TABLE-02",
+        "revision": 1,
+        "title": "单位 × 目标投入透视",
+        "assetType": "analysisTable",
+        "mode": "pivot",
+        "dataSetId": "resourceInput",
+        "rowDimensions": ["unitId"],
+        "columnDimensions": ["targetId"],
+        "measure": "demo_amount",
+        "aggregation": "sum",
+        "provenance": "DEMO_ASSET"
+      },
+      {
+        "assetId": "DEMO-TABLE-03",
+        "revision": 1,
+        "title": "投入原始明细",
+        "assetType": "analysisTable",
+        "mode": "detail",
+        "dataSetId": "resourceInput",
+        "columns": ["simulationId", "tick", "unitId", "targetId", "demo_amount"],
+        "provenance": "DEMO_ASSET"
+      }
+    ],
+    "fixedTemplates": [
+      {
+        "assetId": "DEMO-FIXED-01",
+        "revision": 1,
+        "title": "资源投入统计日报",
+        "assetType": "fixedTable",
+        "page": {
+          "size": "A4",
+          "orientation": "portrait",
+          "marginMm": 18
+        },
+        "sections": [
+          {
+            "kind": "title",
+            "text": "资源投入统计日报"
+          },
+          {
+            "kind": "parameter",
+            "items": ["reportTitle", "simulationId", "tick"]
+          },
+          {
+            "kind": "dynamicTable",
+            "title": "按单位汇总",
+            "groupBy": ["unitId"],
+            "value": "sum(demo_amount)"
+          },
+          {
+            "kind": "dynamicTable",
+            "title": "按目标汇总",
+            "groupBy": ["targetId"],
+            "value": "sum(demo_amount)"
+          },
+          {
+            "kind": "total",
+            "expression": "sum(demo_amount)"
+          },
+          {
+            "kind": "note",
+            "text": "所有数据为 DEMO 合成样例"
+          }
+        ],
+        "provenance": "DEMO_ASSET",
+        "gridModel": {
+          "rowCount": 12,
+          "columnIds": ["A", "B", "C", "D", "E", "F"],
+          "columnWidthsPx": [110, 110, 110, 110, 110, 110],
+          "mergedRanges": [
+            {
+              "start": "A1",
+              "end": "F1"
+            },
+            {
+              "start": "A2",
+              "end": "C2"
+            },
+            {
+              "start": "D2",
+              "end": "F2"
+            },
+            {
+              "start": "A4",
+              "end": "F4"
+            },
+            {
+              "start": "A10",
+              "end": "F10"
+            }
+          ],
+          "cells": {
+            "A1": {
+              "text": "资源投入统计日报",
+              "style": "title"
+            },
+            "A2": {
+              "text": "演示运行：{{simulationId}}",
+              "style": "info"
+            },
+            "D2": {
+              "text": "数据时间点：{{tick}}",
+              "style": "info"
+            },
+            "A4": {
+              "text": "按单位投入统计",
+              "style": "section"
+            },
+            "A5": {
+              "text": "单位",
+              "style": "header"
+            },
+            "D5": {
+              "text": "投入量",
+              "style": "header"
+            },
+            "A10": {
+              "text": "合计与说明",
+              "style": "section"
+            },
+            "A11": {
+              "text": "合计",
+              "style": "summary"
+            },
+            "D11": {
+              "binding": "sum(demo_amount)",
+              "style": "summary"
+            },
+            "A12": {
+              "text": "数据均为合成演示样本",
+              "style": "note"
+            }
+          },
+          "dynamicRegions": [
+            {
+              "startCell": "A6",
+              "rowCountMode": "dataDriven",
+              "dataSetId": "resourceInput",
+              "groupBy": ["unitId"],
+              "metric": "demo_amount",
+              "aggregation": "sum",
+              "columnBindings": {
+                "A": "unitId",
+                "D": "sum(demo_amount)"
+              }
+            }
+          ],
+          "demoPageNumbering": {
+            "show": true,
+            "format": "第 {page} 页"
+          }
+        }
+      },
+      {
+        "assetId": "DEMO-FIXED-02",
+        "revision": 1,
+        "title": "长明细分页排版样例",
+        "assetType": "fixedTable",
+        "page": {
+          "size": "A4",
+          "orientation": "landscape",
+          "marginMm": 14
+        },
+        "sections": [
+          {
+            "kind": "title",
+            "text": "动态明细分页预览"
+          },
+          {
+            "kind": "dynamicTable",
+            "dataSetId": "printStressRows",
+            "repeatHeader": true,
+            "mergeExample": true,
+            "columns": ["sequence", "itemName", "unitId", "targetId", "quantity", "note"]
+          }
+        ],
+        "provenance": "DEMO_ASSET",
+        "gridModel": {
+          "rowCount": 5,
+          "columnIds": ["A", "B", "C", "D", "E", "F"],
+          "columnWidthsPx": [65, 145, 95, 95, 75, 230],
+          "mergedRanges": [
+            {
+              "start": "A1",
+              "end": "F1"
+            }
+          ],
+          "cells": {
+            "A1": {
+              "text": "动态明细分页预览",
+              "style": "title"
+            },
+            "A3": {
+              "text": "序号",
+              "style": "header"
+            },
+            "B3": {
+              "text": "项目",
+              "style": "header"
+            },
+            "C3": {
+              "text": "单位",
+              "style": "header"
+            },
+            "D3": {
+              "text": "目标",
+              "style": "header"
+            },
+            "E3": {
+              "text": "数量",
+              "style": "header"
+            },
+            "F3": {
+              "text": "备注",
+              "style": "header"
+            }
+          },
+          "dynamicRegions": [
+            {
+              "startCell": "A4",
+              "rowCountMode": "dataDriven",
+              "dataSetId": "printStressRows",
+              "columnBindings": {
+                "A": "sequence",
+                "B": "itemName",
+                "C": "unitId",
+                "D": "targetId",
+                "E": "quantity",
+                "F": "note"
+              },
+              "repeatHeaderRange": "A3:F3"
+            }
+          ],
+          "demoPageNumbering": {
+            "show": true,
+            "format": "第 {page} 页"
+          }
+        }
+      }
+    ],
+    "reportTemplates": [
+      {
+        "assetId": "DEMO-REPORT-TEMPLATE-01",
+        "revision": 1,
+        "assetType": "reportTemplate",
+        "title": "应急处置资源与进度分析报告",
+        "doc": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "应急处置资源与进度分析报告"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "本报告基于 {{simulationId}} / Tick {{tick}} 的演示数据生成。"
+                }
+              ]
+            },
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "1. 摘要"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "资源投入合计 {{resourceInputTotal}} 演示量，转移累计 {{transferredTotal}} 人（合成样例）。"
+                }
+              ]
+            },
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "2. 资源投入"
+                }
+              ]
+            },
+            {
+              "type": "chartAsset",
+              "attrs": {
+                "assetId": "DEMO-CHART-01",
+                "assetRevision": 3,
+                "overrides": {},
+                "displayMode": "inline"
+              }
+            },
+            {
+              "type": "tableAsset",
+              "attrs": {
+                "assetId": "DEMO-TABLE-02",
+                "assetRevision": 1,
+                "overrides": {},
+                "displayMode": "inline"
+              }
+            },
+            {
+              "type": "fixedTableAsset",
+              "attrs": {
+                "assetId": "DEMO-FIXED-01",
+                "assetRevision": 1,
+                "overrides": {},
+                "displayMode": "inline"
+              }
+            },
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "3. 转移进度与任务"
+                }
+              ]
+            },
+            {
+              "type": "chartAsset",
+              "attrs": {
+                "assetId": "DEMO-CHART-06",
+                "assetRevision": 1,
+                "overrides": {},
+                "displayMode": "inline"
+              }
+            },
+            {
+              "type": "chartAsset",
+              "attrs": {
+                "assetId": "DEMO-CHART-05",
+                "assetRevision": 1,
+                "overrides": {},
+                "displayMode": "inline"
+              }
+            },
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "4. 结论与建议"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "根据演示样例，建议持续观察各目标的资源分配和转移进度。"
+                }
+              ]
+            }
+          ]
+        },
+        "provenance": "DEMO_ASSET"
+      },
+      {
+        "assetId": "DEMO-REPORT-TEMPLATE-02",
+        "revision": 1,
+        "assetType": "reportTemplate",
+        "title": "任务进度专题简报",
+        "doc": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 1
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "任务进度专题简报"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "演示数据集 {{simulationId}}，时间点 {{tick}}。"
+                }
+              ]
+            },
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "任务执行概况"
+                }
+              ]
+            },
+            {
+              "type": "chartAsset",
+              "attrs": {
+                "assetId": "DEMO-CHART-05",
+                "assetRevision": 1,
+                "overrides": {},
+                "displayMode": "inline"
+              }
+            },
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "资源投入对照"
+                }
+              ]
+            },
+            {
+              "type": "chartAsset",
+              "attrs": {
+                "assetId": "DEMO-CHART-03",
+                "assetRevision": 1,
+                "overrides": {},
+                "displayMode": "inline"
+              }
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "备注：本简报中的任务、数值及状态均为模拟样例。"
+                }
+              ]
+            }
+          ]
+        },
+        "provenance": "DEMO_ASSET"
+      }
+    ]
+  },
+  "demoReportGeneration": {
+    "selection": {
+      "templateId": "DEMO-REPORT-TEMPLATE-01",
+      "templateRevision": 1,
+      "simulationId": "DEMO-RUN-A",
+      "branch": "main",
+      "tick": 2
+    },
+    "exampleResolvedValues": {
+      "resourceInputTotal": 30,
+      "transferredTotal": 12,
+      "reportTitle": "应急处置资源与进度分析报告"
+    },
+    "exampleInstance": {
+      "instanceId": "DEMO-REPORT-INSTANCE-01",
+      "state": "draft",
+      "templateRevision": 1,
+      "assetPins": {
+        "DEMO-CHART-01": 3,
+        "DEMO-TABLE-02": 1,
+        "DEMO-CHART-05": 1,
+        "DEMO-CHART-06": 1,
+        "DEMO-FIXED-01": 1
+      },
+      "overrides": {},
+      "provenance": "DEMO_SYNTHETIC"
+    },
+    "simulatePublication": {
+      "state": "demo-published",
+      "immutableAfterSave": true,
+      "provenance": "DEMO_SYNTHETIC"
+    }
+  },
+  "expectedChecks": {
+    "runATick2": {
+      "groupByUnit": {
+        "U-A": 18,
+        "U-B": 12
+      },
+      "groupByTarget": {
+        "T-1": 20,
+        "T-2": 10
+      },
+      "pivot": {
+        "U-A": {
+          "T-1": 12,
+          "T-2": 6
+        },
+        "U-B": {
+          "T-1": 8,
+          "T-2": 4
+        }
+      },
+      "grandTotal": 30,
+      "filterT1Total": 20,
+      "filterT1GroupByUnit": {
+        "U-A": 12,
+        "U-B": 8
+      },
+      "resourceSplitByCategory": {
+        "personnel": 18,
+        "equipment": 12
+      },
+      "transferredTotal": 12,
+      "transferTarget": 20,
+      "completionPercent": 60
+    },
+    "runATick1": {
+      "resourceInputTotal": 24,
+      "transferredTotal": 6
+    },
+    "runBTick1": {
+      "resourceInputTotal": 16,
+      "transferredTotal": 4
+    },
+    "runBTick2": {
+      "resourceInputTotal": 21,
+      "transferredTotal": 8
+    },
+    "invalidSelection": {
+      "simulationId": "DEMO-LIVE-HEAD0",
+      "tick": 2,
+      "expectedUI": "无此数据时间点"
+    },
+    "nullFieldUnit": {
+      "fieldId": "casualty/threat_dose",
+      "expectedUI": "未定义单位"
+    },
+    "sourceState": {
+      "fieldId": "water_sprayer/is_spraying",
+      "values": [false, true, true],
+      "guidance": "连续为 true 的状态不是多次事件"
+    },
+    "printRows": {
+      "count": 64,
+      "notForResourceAggregation": true
+    }
+  }
+}
