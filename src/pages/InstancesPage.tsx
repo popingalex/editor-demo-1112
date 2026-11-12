@@ -13,9 +13,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useApp, useUI, toast } from "../store/store";
-import type { Publication, ReportInstance } from "../data/types";
+import type { EvalResult, Publication, ReportInstance } from "../data/types";
 import { fmt } from "../data/engine";
-import { collectRefs, overrideKeys, OVERRIDE_LABELS } from "../data/reports";
+import { collectRefs, overrideKeys, OVERRIDE_LABELS, instanceEnv } from "../data/reports";
 import { PageHeader } from "../ui/PageHeader";
 import { Badge, Button, Card, Field, Modal, SaveState, Tabs, TextInput, cx } from "../ui/kit";
 import { ReportWorkbench } from "../editor/ReportWorkbench";
@@ -23,38 +23,29 @@ import { ReportCtx } from "../editor/context";
 import { DocRenderer } from "../editor/DocRenderer";
 import { useDraft } from "./useDraft";
 
-export function FrozenViewer({
-  title,
-  doc,
-  selection,
-  vars,
-  snapshots,
-  badge,
-}: {
-  title: string;
-  doc: JSONContent;
-  selection: ReportInstance["selection"];
-  vars: ReportInstance["resolvedValues"];
-  snapshots: ReportInstance["assetSnapshots"];
-  badge?: React.ReactNode;
-}) {
+/** Renders frozen content only from its own snapshots, frozen records and materialized inline results. */
+export function FrozenViewer({ title, doc, content, badge }: { title: string; doc: JSONContent; content: Pick<ReportInstance, "selection" | "assetSnapshots" | "resourceSnapshots" | "dataSnapshot" | "variableValues" | "templateRef"> & { frozenResults?: Record<string, EvalResult> }; badge?: React.ReactNode }) {
+  const env = instanceEnv(content);
   return (
     <ReportCtx.Provider
       value={{
         mode: "frozen",
-        params: selection,
-        vars,
+        params: content.selection,
         preview: true,
-        resolveSnapshot: (id, rev) => snapshots[`${id}@${rev}`] ?? null,
+        env,
+        frozenResults: content.frozenResults,
+        resolveSnapshot: (id, rev) => content.assetSnapshots[`${id}@${rev}`] ?? null,
         latestRevision: () => undefined,
       }}
     >
-      <div className="bg-white rounded-sm shadow-[0_2px_10px_rgba(16,24,40,.08)] px-12 py-10 relative">
+      <div className="bg-white rounded-sm shadow-[0_2px_10px_rgba(16,24,40,.08)] px-12 py-10 relative" data-frozen-view="">
         <div className="absolute top-3 right-4 flex items-center gap-2 text-[10px] font-semibold text-amber-700 tracking-wider">
           {badge}
           DEMO / 演示数据
         </div>
-        <div className="text-[11px] text-ink-3 mb-2">{title}</div>
+        <div className="text-[11px] text-ink-3 mb-2">
+          {title} · 数据来源：{content.dataSnapshot ? "冻结数据快照" : "DEMO JSON（旧版发布无数据快照）"} · 资源：{content.resourceSnapshots ? `${Object.keys(content.resourceSnapshots).length} 个冻结快照` : "种子注册表（旧版）"}
+        </div>
         <DocRenderer doc={doc} />
       </div>
     </ReportCtx.Provider>
@@ -67,8 +58,9 @@ export function InstancesPage() {
   const instances = useApp((s) => s.instances);
   const pubs = useApp((s) => s.publications);
   const list = Object.values(instances).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const pubInst = params.publicationId ? pubs.find((p) => p.publicationId === params.publicationId)?.instanceId : undefined;
   const id =
-    params.instanceId && instances[params.instanceId] ? params.instanceId : list[0]?.instanceId;
+    params.instanceId && instances[params.instanceId] ? params.instanceId : (pubInst && instances[pubInst] ? pubInst : list[0]?.instanceId);
   const inst = id ? instances[id] : undefined;
   return (
     <>
@@ -145,7 +137,7 @@ function InstanceDetail({ inst }: { inst: ReportInstance }) {
     () => ({
       mode: "instance" as const,
       params: inst.selection,
-      vars: inst.resolvedValues,
+      env: instanceEnv(inst),
       resolveSnapshot: (aid: string, rev: number) => inst.assetSnapshots[`${aid}@${rev}`] ?? null,
       latestRevision: (aid: string) => assets[aid]?.latest,
     }),
@@ -260,6 +252,13 @@ function InstanceDetail({ inst }: { inst: ReportInstance }) {
             preview={preview}
             mode="instance"
             onReady={(d) => !dirty && load(d)}
+            docKey={inst.instanceId}
+            varValues={inst.variableValues ?? {}}
+            onVarValue={(vid, v) => {
+              useApp.getState().setInstanceVariable(inst.instanceId, vid, v);
+              toast(`实例变量已更新（仅 ${inst.instanceId}）`);
+            }}
+            onInsertResource={(p) => useApp.getState().addInstanceSnapshots(inst.instanceId, p.assetId, p.revision)}
           />
         </>
       )}
@@ -483,9 +482,7 @@ function InstanceDetail({ inst }: { inst: ReportInstance }) {
             <FrozenViewer
               title={`${viewPub.publicationId} · 冻结发布`}
               doc={viewPub.frozenContent.doc}
-              selection={viewPub.frozenContent.selection}
-              vars={viewPub.frozenContent.resolvedValues}
-              snapshots={viewPub.frozenContent.assetSnapshots}
+              content={viewPub.frozenContent}
               badge={<Badge tone="green">已冻结</Badge>}
             />
           </div>
@@ -502,9 +499,7 @@ function InstanceDetail({ inst }: { inst: ReportInstance }) {
             <FrozenViewer
               title={`${inst.instanceId} · 修订 ${viewRev}`}
               doc={inst.revisions.find((r) => r.revision === viewRev)!.doc}
-              selection={inst.selection}
-              vars={inst.resolvedValues}
-              snapshots={inst.assetSnapshots}
+              content={inst}
             />
           </div>
         )}

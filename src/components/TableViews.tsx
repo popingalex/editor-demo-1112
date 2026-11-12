@@ -58,7 +58,7 @@ export function AnalysisTableView({
       />
     );
   const lm = def.labelMode;
-  const mLabel = def.aggregation === "count" ? "COUNT(记录数)" : `SUM(${fieldLabel(def.measure)})`;
+  const mLabel = def.measureBinding?.kind === "expression" ? `ƒ ${def.measureBinding.assetId}@r${def.measureBinding.revision}` : def.aggregation === "count" ? "COUNT(记录数)" : `SUM(${fieldLabel(def.measure)})`;
   const sel = (k: string) => selectedKey === k;
   const cellCls = (k: string, clickable = true) =>
     cx(

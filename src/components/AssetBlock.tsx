@@ -13,6 +13,8 @@ import { ChartView } from "./ChartView";
 import { AnalysisTableView, RecordsTable, type CellPick } from "./TableViews";
 import { SheetTable } from "./FixedSheet";
 import { expandFixed } from "../data/fixedModel";
+import { computeTable } from "../data/tableModel";
+import { defaultEnv, type Env } from "../data/registry";
 import { Badge, StatusBlock, cx } from "../ui/kit";
 import { chartTypeLabel, computeChart } from "../data/chartModel";
 import { fmt } from "../data/engine";
@@ -42,6 +44,8 @@ export function AssetBlock({
   chrome = true,
   nodeId,
   interactive = true,
+  env,
+  displayMode = "inline",
 }: {
   kind: AssetKind;
   snapshot: AssetSnapshot | null;
@@ -54,6 +58,8 @@ export function AssetBlock({
   chrome?: boolean;
   nodeId?: string;
   interactive?: boolean;
+  env?: Env;
+  displayMode?: string;
 }) {
   const Icon = KIND_ICON[kind];
   const ov = overrideKeys(overrides).filter((k) => k !== "caption");
@@ -67,6 +73,7 @@ export function AssetBlock({
 
   let body: React.ReactNode;
   let foot: string | null = null;
+  let summaryRows: string[] = [];
   if (!snapshot || !eff) {
     body = (
       <StatusBlock
@@ -77,7 +84,8 @@ export function AssetBlock({
     );
   } else if (kind === "chart") {
     const d = eff as ChartDef;
-    const m = computeChart(d);
+    const m = computeChart(d, env ?? defaultEnv());
+    summaryRows = m.status === "ok" ? (m.tasks ? m.tasks.map((t) => `${t.taskId} ${t.progressPercent}%`) : m.summary.map((x) => `${x.label} = ${fmt(x.value)}`)) : [m.message ?? ""];
     body = (
       <ChartView def={d} model={m} height={overrides?.height ?? Math.min(d.style.height, 280)} />
     );
@@ -85,10 +93,14 @@ export function AssetBlock({
       foot = `${chartTypeLabel(d.chartType)} · ${m.totalLabel} ${fmt(m.total)}${m.extra ? " · " + m.extra.map((e) => `${e.label} ${e.value}`).join(" · ") : ""}`;
   } else if (kind === "table") {
     const d = eff as TableDef;
+    const tm = computeTable(d, env ?? defaultEnv());
+    summaryRows = tm.status === "ok" ? [`总计 ${fmt(tm.total)}（${tm.records.length} 条源记录）`] : [tm.message ?? ""];
+    foot = tm.status === "ok" ? `分析表 · 总计 ${fmt(tm.total)}${interactive ? " · 点击单元格下钻" : " · 编辑态点击选中节点，预览中可下钻"}` : null;
     body = (
       <div>
         <AnalysisTableView
           def={d}
+          model={tm}
           maxHeight={overrides?.height ?? 260}
           onPick={interactive ? setPick : undefined}
           selectedKey={pick?.key}
@@ -110,7 +122,8 @@ export function AssetBlock({
     );
   } else {
     const d = eff as FixedDef;
-    const ex = expandFixed(d);
+    const ex = expandFixed(d, env ?? defaultEnv());
+    summaryRows = [`填数 ${ex.rows.length} 行 · 合计 ${fmt(ex.grandTotal)}`];
     const scale = Math.min(1, 640 / d.colWidths.reduce((a, b) => a + b, 0));
     const rows = ex.rows.slice(0, overrides?.maxRows ?? 18);
     body = (
@@ -122,6 +135,18 @@ export function AssetBlock({
     );
     foot = `固定表填数预览 · ${ex.rows.length} 行${ex.rows.length > rows.length ? `（显示前 ${rows.length} 行）` : ""}`;
   }
+
+  if (displayMode === "summary" && snapshot)
+    body = (
+      <div className="text-[12px] text-ink-2 space-y-0.5" data-summary-mode="">
+        <div className="text-[11px] text-ink-3">摘要模式（displayMode = summary）</div>
+        {summaryRows.slice(0, 8).map((r, i) => (
+          <div key={i} className="tabular-nums">
+            {r}
+          </div>
+        ))}
+      </div>
+    );
 
   return (
     <div

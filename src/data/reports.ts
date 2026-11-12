@@ -202,16 +202,13 @@ export const OVERRIDE_LABELS: Record<string, string> = {
   swap: "行列交换",
   showTotals: "合计",
   caption: "图注",
+  filterMode: "筛选模式",
   align: "对齐",
   width: "宽度",
 };
 export const overrideKeys = (o: Record<string, any> | undefined) =>
   Object.entries(o ?? {})
-    .filter(
-      ([, v]) =>
-        v !== undefined &&
-        !(typeof v === "object" && v && !Array.isArray(v) && Object.keys(v).length === 0),
-    )
+    .filter(([k, v]) => v !== undefined && (!(typeof v === "object" && v && !Array.isArray(v) && Object.keys(v).length === 0) || (k === "filters" && o?.filterMode === "replace")))
     .map(([k]) => k);
 
 export function summarizeNode(ref: DocRef, snap: AssetSnapshot, params: DataContext, env: Env = defaultEnv()): ResolvedNodeData {

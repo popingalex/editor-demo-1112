@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Eye, EyeOff, Save, Wand2, RefreshCw, Undo2 } from "lucide-react";
 import { useApp, useUI, latestDef, toast } from "../store/store";
 import type { ReportDef } from "../data/types";
-import { computeVariables } from "../data/engine";
-import { snapshotFor, collectRefs, collectVariables } from "../data/reports";
+import { snapshotFor, collectRefs, collectInlineRefs } from "../data/reports";
+import { envFromRecords } from "../data/registry";
 import { PageHeader } from "../ui/PageHeader";
 import { Badge, Button, Field, InlineEdit, Modal, SaveState, Select, TextInput } from "../ui/kit";
 import { ReportWorkbench } from "../editor/ReportWorkbench";
@@ -28,15 +28,13 @@ export function ReportEditorPage() {
   const [save, setSave] = useState(false);
   const [note, setNote] = useState("");
   const [wbKey, setWbKey] = useState(0);
-  const vars = useMemo(
-    () => (def ? computeVariables(def.parameters, { reportTitle: def.title }) : {}),
-    [def],
-  );
+  const resources = useApp((s) => s.resources);
   if (!asset || !def) return <div className="p-10 text-center text-ink-3">暂无报告模板</div>;
+  const varValues = def.variableValues ?? {};
   const ctx = {
     mode: "template" as const,
     params: def.parameters,
-    vars,
+    env: envFromRecords(resources, { varValues, reportTitle: def.title }),
     resolveSnapshot: (id: string, rev: number) => snapshotFor(assets, id, rev),
     latestRevision: (id: string) => assets[id]?.latest,
   };
@@ -126,6 +124,17 @@ export function ReportEditorPage() {
           if (!dirty) load({ ...def, doc: d });
         }}
         insertAssetId={params.insertAssetId}
+        docKey={asset.assetId}
+        varValues={varValues}
+        onVarValue={(id, v) =>
+          setDraft((cur) => {
+            if (!cur) return cur;
+            const vv = { ...(cur.variableValues ?? {}) };
+            if (v === null) delete vv[id];
+            else vv[id] = v;
+            return { ...cur, variableValues: vv };
+          })
+        }
       />
       <Modal
         open={save}
@@ -153,8 +162,8 @@ export function ReportEditorPage() {
           <div className="rounded-md bg-brand-50 border border-brand-100 p-3 text-[12.5px] space-y-1">
             <div>
               <b>作用范围：报告模板</b>。保存 Tiptap 文档 JSON（含 {refs.length} 个资源节点的
-              assetId / assetRevision / overrides）、{collectVariables(def.doc).length}{" "}
-              种变量与默认参数。
+              assetId / assetRevision / overrides）、{collectInlineRefs(def.doc).length}{" "}
+              个行内变量/表达式引用（含 ID 与修订）、模板变量值 {Object.keys(def.variableValues ?? {}).length} 项与默认参数。
             </div>
             <div>已生成的报告实例不受影响。</div>
           </div>

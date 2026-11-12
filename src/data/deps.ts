@@ -16,7 +16,7 @@ import type {
   VariableDef,
 } from './types'
 import { parseRefBinding } from './fixedModel'
-import { varIdFor } from './registry'
+import { varIdFor, datasetIdFor } from './registry'
 import { rcRef, parseKey, colName } from './grid'
 
 export interface DirectDep {
@@ -50,11 +50,14 @@ export function directDeps(kind: CatalogKind, def: AnyDef | ResourceDef): Direct
   if (kind === 'chart' || kind === 'table') {
     const d = def as ChartDef | TableDef
     const L = kind === 'chart' ? 'Chart' : 'Table'
+    // legacy dataSetId maps to the seed shared Dataset definition (same ID mapping as migration)
     if (d.datasetRef) out.push({ location: `${L}.dataset`, ...d.datasetRef })
+    else out.push({ location: `${L}.dataset（旧 dataSetId 映射）`, assetId: datasetIdFor(d.dataSetId), revision: 1 })
     if (d.measureBinding && d.measureBinding.kind !== 'field') out.push({ location: `${L}.measure`, assetId: d.measureBinding.assetId, revision: d.measureBinding.revision })
     for (const vf of d.variableFilters ?? []) out.push({ location: `${L}.filter ${vf.field}`, ...vf.variable })
   } else if (kind === 'fixed') {
     const d = def as FixedDef
+    for (const ds of new Set([d.totalDataSetId, ...d.regions.map((g) => g.dataSetId)])) out.push({ location: `Fixed.dataset（${ds}）`, assetId: datasetIdFor(ds), revision: 1 })
     for (const [k, c] of Object.entries(d.cells)) {
       const r = c.binding ? parseRefBinding(c.binding) : null
       if (r) {

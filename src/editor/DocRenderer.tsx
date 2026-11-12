@@ -3,7 +3,9 @@ import { Fragment, type ReactNode } from "react";
 import { AssetBlock } from "../components/AssetBlock";
 import { ASSET_NODE_TYPES } from "../data/reports";
 import { useReportCtx } from "./context";
-import { VarChip } from "./extensions";
+import { InlineChip } from "./extensions";
+
+const KNOWN = new Set(["doc", "heading", "paragraph", "bulletList", "orderedList", "listItem", "blockquote", "horizontalRule", "hardBreak", "text", "variable", "expressionRef", "chartAsset", "tableAsset", "fixedTableAsset", "codeBlock"]);
 
 function Marks({ marks, children }: { marks?: JSONContent["marks"]; children: ReactNode }) {
   let out = children;
@@ -45,7 +47,9 @@ function RNode({ n, idx }: { n: JSONContent; idx: number }) {
     case "text":
       return <Marks marks={n.marks}>{n.text}</Marks>;
     case "variable":
-      return <VarChip name={n.attrs?.name} value={ctx.vars[n.attrs?.name]} preview={ctx.preview} />;
+      return <InlineChip refAttrs={n.attrs ?? {}} type="variable" preview={ctx.preview} />;
+    case "expressionRef":
+      return <InlineChip refAttrs={n.attrs ?? {}} type="expressionRef" preview={ctx.preview} />;
     default:
       if (n.type && ASSET_NODE_TYPES[n.type]) {
         const a = n.attrs ?? {};
@@ -57,11 +61,18 @@ function RNode({ n, idx }: { n: JSONContent; idx: number }) {
             revision={a.assetRevision}
             overrides={a.overrides ?? {}}
             params={ctx.params}
+            env={ctx.env}
             nodeId={a.nodeId}
             latestRevision={ctx.mode === "template" ? ctx.latestRevision(a.assetId) : undefined}
           />
         );
       }
+      if (n.type && !KNOWN.has(n.type))
+        return (
+          <div className="my-2 text-[12px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+            未知节点类型 “{n.type}”：已保留在 JSON 中，当前版本无法渲染
+          </div>
+        );
       return <Fragment>{kids}</Fragment>;
   }
 }

@@ -31,12 +31,16 @@ import {
 } from "../store/store";
 import { newChartDef, DEFAULT_CONTEXT } from "../data/seed";
 import { rcKey } from "../data/grid";
+import { getGlobalResources, setGlobalResources } from "../data/registry";
 
+export type Method = "纯函数" | "Store" | "页面交互";
 export interface AResult {
   id: string;
   title: string;
   criteria: string;
   pass: boolean;
+  status: "PASS" | "FAIL" | "NOT_VERIFIED";
+  method: Method;
   detail: string;
   entry: { page: PageId; params?: NavParams; label: string };
   ui: string;
@@ -59,6 +63,15 @@ const toMap = (rows: { key: string; value: number | null }[]) =>
   Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
 export function runAcceptance(): AResult[] {
+  const prev = getGlobalResources();
+  try {
+    return runAcceptanceInner();
+  } finally {
+    setGlobalResources(prev);
+  }
+}
+
+function runAcceptanceInner(): AResult[] {
   const out: AResult[] = [];
   const T = (
     id: string,
@@ -66,17 +79,20 @@ export function runAcceptance(): AResult[] {
     criteria: string,
     entry: AResult["entry"],
     ui: string,
-    fn: () => { pass: boolean; detail: string },
+    fn: () => { pass: boolean; detail: string; status?: AResult["status"]; method?: Method },
   ) => {
     try {
       const r = fn();
-      out.push({ id, title, criteria, entry, ui, ...r });
+      const method: Method = r.method ?? (/^A(0[3-9]|1[0-9])$/.test(id) || ["A23", "A24", "A25", "A26", "A28", "A30", "A37", "A38"].includes(id) ? "纯函数" : "Store");
+      out.push({ id, title, criteria, entry, ui, method, status: r.status ?? (r.pass ? "PASS" : "FAIL"), ...r });
     } catch (e: any) {
-      out.push({ id, title, criteria, entry, ui, pass: false, detail: `异常：${e?.message ?? e}` });
+      out.push({ id, title, criteria, entry, ui, method: "Store", status: "FAIL", pass: false, detail: `异常：${e?.message ?? e}` });
     }
   };
   const s = createTestStore();
   const st = () => s.getState();
+  setGlobalResources(st().resources);
+  s.subscribe((x) => setGlobalResources(x.resources));
   const chart01 = latestDef<ChartDef>(st().assets["DEMO-CHART-01"])!;
   const table02 = latestDef<TableDef>(st().assets["DEMO-TABLE-02"])!;
   const byUnit = (extra: Partial<ChartDef> = {}) => computeChart({ ...chart01, ...extra });
@@ -835,38 +851,28 @@ export function runAcceptance(): AResult[] {
   );
   T(
     "A39",
-    "页面切换及刷新恢复",
-    "已保存的资产和实例仍可打开",
-    { page: "assets", label: "资产中心" },
-    "刷新浏览器后检查资产版本与实例",
+    "持久化结构检查（不是刷新交互测试）",
+    "本地存储含当前 schema 的资产、资源、实例与发布",
+    { page: "assets", params: { kind: "storage" }, label: "存储与迁移" },
+    "真实刷新恢复见 E19 / E26（浏览器自动化）",
     () => {
-      const ls =
-        typeof localStorage !== "undefined" ? localStorage.getItem("rr-workbench-v3") : null;
-      const nav =
-        typeof localStorage !== "undefined" ? localStorage.getItem("rr-workbench-nav") : null;
-      const parsed = ls ? JSON.parse(ls) : null;
+      const ls = typeof localStorage !== "undefined" ? localStorage.getItem("rr-workbench-v3") : null;
+      if (!ls) return { pass: false, status: "NOT_VERIFIED", method: "Store", detail: "运行环境无 localStorage（例如 Node），无法检查" };
+      const parsed = JSON.parse(ls);
       return {
-        pass: !!parsed?.state?.assets && !!parsed?.state?.instances && !!nav,
-        detail: ls
-          ? `本地持久化：${Object.keys(parsed.state.assets).length} 个资产、${Object.keys(parsed.state.instances).length} 个实例、${parsed.state.publications.length} 条发布；导航状态已保存`
-          : "运行环境无 localStorage",
+        pass: parsed?.version === 2 && !!parsed?.state?.assets && !!parsed?.state?.resources && !!parsed?.state?.instances,
+        method: "Store",
+        detail: `schema v${parsed?.version} · ${Object.keys(parsed.state.assets).length} 资产 · ${Object.keys(parsed.state.resources ?? {}).length} 资源 · ${Object.keys(parsed.state.instances).length} 实例 · ${parsed.state.publications.length} 发布（仅结构检查，未执行刷新）`,
       };
     },
   );
   T(
     "A40",
-    "遍历主要菜单与按钮",
+    "遍历主要菜单与按钮（页面交互）",
     "无无效操作、静态占位或无响应控件",
     { page: "assets", label: "资产中心" },
-    "见下方“控件 → 状态”清单",
-    () => {
-      const grp = aggregate(getRecords("resourceInput"), ["simulationId"], "demo_amount", "sum");
-      return {
-        pass: grp.length === 2,
-        detail:
-          "所有主导航、保存三分法按钮、筛选/维度/图型/样式控件均绑定到真实状态（逻辑层已由 A01–A39 覆盖）；UI 点击遍历为人工验收项",
-      };
-    },
+    "需在浏览器中逐一操作；应用内无法自动点击",
+    () => ({ pass: false, status: "NOT_VERIFIED", method: "页面交互", detail: "应用内只运行纯函数/Store 测试，不能代替控件遍历；浏览器自动化结果见交付报告" }),
   );
   return out;
 }

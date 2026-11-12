@@ -69,6 +69,7 @@ export function SheetTable({
                     STYLE_CLS[cell.style],
                     cell.isBinding && "tabular-nums",
                     cell.isEmptyMsg && "text-ink-3 italic",
+                    cell.error && "text-red-700! bg-red-50!",
                     onCell && "cursor-pointer",
                     selected === cell.srcKey &&
                       "outline outline-2 outline-brand-500 -outline-offset-2",

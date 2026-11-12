@@ -34,6 +34,8 @@ import { AnalysisTableView, RecordsTable, type CellPick } from "../components/Ta
 import { DataContextBar, FilterBar, FilterEditor } from "../components/DataControls";
 import { InsertModal } from "./AssetCenter";
 import { useDraft } from "./useDraft";
+import { SidePanel } from "../ui/SidePanel";
+import { SharedDatasetSelect, MeasureBindingEditor, VariableFilterEditor } from "../components/BindingControls";
 
 type ZoneId = "rows" | "cols" | "group" | "columns";
 
@@ -157,10 +159,14 @@ export function TableStudio() {
       });
     if (zone === "group") set({ groupBy: [...def.groupBy.filter((x) => x !== f), f] });
   };
-  const changeDataset = (ds: DataSetId) => {
+  const changedDataset = (ds: DataSetId): TableDef => {
     const m = DATASETS[ds];
     const ok = (arr: string[]) => arr.filter((d) => m.dims.includes(d));
-    set({
+    return {
+      ...def,
+      measureBinding: undefined,
+      variableFilters: undefined,
+      datasetRef: undefined,
       dataSetId: ds,
       measure: m.measures.includes(def.measure) ? def.measure : m.measures[0],
       groupBy: ok(def.groupBy),
@@ -168,7 +174,11 @@ export function TableStudio() {
       columnDimensions: ok(def.columnDimensions),
       columns: ["recordId", ...m.dims.filter((d) => d !== "branch"), ...m.measures],
       filters: {},
-    });
+    };
+  };
+  const changeDataset = (ds: DataSetId) => {
+    setDraft(changedDataset(ds));
+    setPick(null);
   };
   const srcDesc = (p: CellPick) => {
     const r = p.records;
@@ -226,7 +236,7 @@ export function TableStudio() {
         }
       />
       <div className="flex-1 min-h-0 flex">
-        <aside className="w-[300px] shrink-0 bg-white border-r border-line overflow-auto scroll-thin">
+        <SidePanel id="studioLeft" side="left" title="数据与字段">
           <Section title="表格资产与数据">
             <Select
               value={assetId!}
@@ -249,6 +259,11 @@ export function TableStudio() {
                 />
               </Field>
             )}
+            <SharedDatasetSelect
+              value={def.datasetRef}
+              sourceKey={def.dataSetId}
+              onChange={(ref, src) => (src !== def.dataSetId ? setDraft({ ...changedDataset(src), datasetRef: ref }) : set({ datasetRef: ref }))}
+            />
             <Field label="演示数据集" hint={<span className="font-mono">{meta.source}</span>}>
               <Select
                 value={def.dataSetId}
@@ -394,6 +409,12 @@ export function TableStudio() {
               />
             )}
             {def.mode !== "detail" && (
+              <MeasureBindingEditor
+                dataSetId={def.dataSetId}
+                binding={def.measureBinding}
+                onChange={(b) => set({ measureBinding: b })}
+                fieldEditor={
+                  <>
               <div
                 className="rounded-md border border-dashed border-gray-300 p-1.5"
                 onDragOver={(e) => e.preventDefault()}
@@ -418,6 +439,9 @@ export function TableStudio() {
                   />
                 </div>
               </div>
+                              </>
+                }
+              />
             )}
           </Section>
           <Section title="汇总、排序与显示">
@@ -481,6 +505,7 @@ export function TableStudio() {
             )}
           </Section>
           <Section title="筛选条件">
+            <VariableFilterEditor dataSetId={def.dataSetId} value={def.variableFilters ?? []} onChange={(v) => set({ variableFilters: v.length ? v : undefined })} />
             <FilterEditor
               dataSetId={def.dataSetId}
               ctx={def.viewParams}
@@ -489,7 +514,7 @@ export function TableStudio() {
               labelMode={def.labelMode}
             />
           </Section>
-        </aside>
+        </SidePanel>
 
         <div className="flex-1 min-w-0 overflow-auto scroll-thin p-4 space-y-3">
           <div className="flex items-center gap-3">

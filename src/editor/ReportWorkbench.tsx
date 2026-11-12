@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { JSONContent } from "@tiptap/core";
-import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { NodeSelection } from "@tiptap/pm/state";
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { JSONContent } from '@tiptap/core'
+import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { NodeSelection } from '@tiptap/pm/state'
 import {
   Undo2,
   Redo2,
@@ -20,6 +20,7 @@ import {
   Table2,
   FileSpreadsheet,
   Braces,
+  Sigma,
   ArrowUp,
   ArrowDown,
   Trash2,
@@ -27,91 +28,94 @@ import {
   ExternalLink,
   Eraser,
   ArrowUpCircle,
-} from "lucide-react";
-import { ChartAssetNode, FixedTableAssetNode, TableAssetNode, VariableNode } from "./extensions";
-import { ReportCtx, type ReportCtxValue } from "./context";
-import { DocRenderer } from "./DocRenderer";
-import { addSection, deleteSection, moveSection } from "./sections";
-import type { AssetKind, ChartDef, DataContext, TableDef } from "../data/types";
-import {
-  ASSET_NODE_TYPES,
-  NODE_TYPE_FOR,
-  OVERRIDE_LABELS,
-  collectRefs,
-  docText,
-  overrideKeys,
-  uid,
-} from "../data/reports";
-import { CHART_TYPES, PALETTES } from "../data/chartModel";
-import { DATASETS, VARIABLES, KNOWN_VARIABLES, fieldLabel } from "../data/engine";
-import { useApp, useUI, KIND_LABEL } from "../store/store";
-import {
-  Badge,
-  Button,
-  Field,
-  Modal,
-  NumberInput,
-  Section,
-  Segmented,
-  Select,
-  TextInput,
-  Toggle,
-  cx,
-} from "../ui/kit";
-import { DataContextBar, FilterEditor } from "../components/DataControls";
-import { KIND_ICON } from "../components/AssetBlock";
+  ChevronDown,
+  ChevronRight,
+  Slash,
+} from 'lucide-react'
+import { ChartAssetNode, ExpressionRefNode, FixedTableAssetNode, TableAssetNode, VariableNode, InlineChip } from './extensions'
+import { ReportCtx, type ReportCtxValue } from './context'
+import { DocRenderer } from './DocRenderer'
+import { addSection, deleteSection, moveSection, sectionRange } from './sections'
+import { SlashCommand, buildSlashItems } from './slash'
+import { insertPick, type InsertPick } from './insertActions'
+import type { AssetKind, CatalogKind, ChartDef, DataContext, ExpressionDef, TableDef, VariableDef } from '../data/types'
+import { ASSET_NODE_TYPES, OVERRIDE_LABELS, collectRefs, docText, overrideKeys, resolveInline, inlineKey, collectInlineRefs } from '../data/reports'
+import { CHART_TYPES, PALETTES } from '../data/chartModel'
+import { DATASETS, fieldLabel } from '../data/engine'
+import { formatResult } from '../data/expr'
+import { useApp, useUI, KIND_LABEL, getRecord } from '../store/store'
+import { Badge, Button, Field, NumberInput, Section, Segmented, Select, TextInput, Toggle, cx } from '../ui/kit'
+import { SidePanel } from '../ui/SidePanel'
+import { DataContextBar, FilterEditor } from '../components/DataControls'
+import { KIND_ICON } from '../components/AssetBlock'
+import { ResourcePicker, EDITOR_FOR } from '../components/Catalog'
 
 interface OutlineItem {
-  index: number;
-  kind: "h" | "a";
-  level: number;
-  text: string;
-  assetKind?: AssetKind;
-  rev?: number;
+  index: number
+  kind: 'h' | 'a'
+  level: number
+  text: string
+  assetKind?: AssetKind
+  rev?: number
 }
 
 interface Selected {
-  pos: number;
-  type: string;
-  attrs: Record<string, any>;
+  pos: number
+  type: string
+  attrs: Record<string, any>
 }
 
 export interface WorkbenchProps {
-  initialDoc: JSONContent;
-  onDocChange: (d: JSONContent) => void;
-  ctx: Omit<ReportCtxValue, "preview">;
-  preview: boolean;
-  mode: "template" | "instance";
-  onParamsChange?: (p: DataContext) => void;
-  insertAssetId?: string;
-  headerSlot?: React.ReactNode;
+  initialDoc: JSONContent
+  onDocChange: (d: JSONContent) => void
+  ctx: Omit<ReportCtxValue, 'preview'>
+  preview: boolean
+  mode: 'template' | 'instance'
+  onParamsChange?: (p: DataContext) => void
+  insertAssetId?: string
+  headerSlot?: React.ReactNode
   /** Called once with the editor-normalized document so callers can rebase their dirty baseline. */
-  onReady?: (d: JSONContent) => void;
+  onReady?: (d: JSONContent) => void
+  /** current variable values in this scope (template draft / instance), keyed by variable assetId */
+  varValues: Record<string, string | number | boolean | null>
+  onVarValue: (variableId: string, value: string | number | boolean | null) => void
+  /** instance mode: snapshot newly inserted shared resources (and their upstream chain) */
+  onInsertResource?: (p: InsertPick) => void
+  docKey?: string
 }
 
-export function ReportWorkbench({
-  initialDoc,
-  onDocChange,
-  ctx,
-  preview,
-  mode,
-  onParamsChange,
-  insertAssetId,
-  headerSlot,
-  onReady,
-}: WorkbenchProps) {
-  const [doc, setDoc] = useState<JSONContent>(initialDoc);
-  const [selected, setSelected] = useState<Selected | null>(null);
-  const [insertKind, setInsertKind] = useState<AssetKind | null>(null);
-  const [varOpen, setVarOpen] = useState(false);
-  const [customVar, setCustomVar] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const onChangeRef = useRef(onDocChange);
-  onChangeRef.current = onDocChange;
-  const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
-  const assets = useApp((s) => s.assets);
-  const go = useUI((s) => s.go);
+const ZOOMS = [
+  { value: 'fit', label: '适合宽度' },
+  { value: '1', label: '100%' },
+  { value: '0.9', label: '90%' },
+  { value: '0.8', label: '80%' },
+  { value: '0.7', label: '70%' },
+]
+
+export function ReportWorkbench({ initialDoc, onDocChange, ctx, preview, mode, onParamsChange, insertAssetId, headerSlot, onReady, varValues, onVarValue, onInsertResource, docKey }: WorkbenchProps) {
+  const [doc, setDoc] = useState<JSONContent>(initialDoc)
+  const [selected, setSelected] = useState<Selected | null>(null)
+  const [picker, setPicker] = useState<CatalogKind[] | null>(null)
+  const [zoom, setZoom] = useState('fit')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const onChangeRef = useRef(onDocChange)
+  onChangeRef.current = onDocChange
+  const onReadyRef = useRef(onReady)
+  onReadyRef.current = onReady
+  const onInsertRef = useRef(onInsertResource)
+  onInsertRef.current = onInsertResource
+  const assets = useApp((s) => s.assets)
+  const go = useUI((s) => s.go)
+  const collapsedSections = useUI((s) => s.outlineCollapsedSections)
+  const toggleSection = useUI((s) => s.toggleOutlineSection)
+  const openPickerRef = useRef<() => void>(() => {})
+  openPickerRef.current = () => setPicker(['variable', 'expression', 'chart', 'table', 'fixed'])
+
+  const doInsert = (p: InsertPick, range?: any) => {
+    if (!editor) return
+    onInsertRef.current?.(p)
+    insertPick(editor, p, range)
+  }
 
   const editor = useEditor({
     extensions: [
@@ -120,273 +124,216 @@ export function ReportWorkbench({
       TableAssetNode,
       FixedTableAssetNode,
       VariableNode,
+      ExpressionRefNode,
+      SlashCommand.configure({
+        getItems: (q: string) =>
+          buildSlashItems(q, () => openPickerRef.current()).map((it) => ({
+            ...it,
+            // every slash insertion goes through the same insert action (+ instance snapshot)
+            run: (e: any, range: any) => {
+              if (it.group === '变量与表达式' || it.group === '共享组件') {
+                const r = getRecord(useApp.getState(), it.id)
+                if (r) onInsertRef.current?.({ kind: r.kind, assetId: r.assetId, revision: r.latest })
+              }
+              it.run(e, range)
+            },
+          })),
+      }),
     ],
     content: initialDoc,
-    editorProps: { attributes: { class: "report-doc min-h-[560px]" } },
+    editorProps: { attributes: { class: 'report-doc min-h-[560px]', 'aria-label': '报告正文（输入 / 唤起插入菜单）' } },
     onCreate: ({ editor }) => {
-      const j = editor.getJSON();
-      setDoc(j);
-      onReadyRef.current?.(j);
+      const j = editor.getJSON()
+      setDoc(j)
+      onReadyRef.current?.(j)
     },
     onUpdate: ({ editor }) => {
-      const j = editor.getJSON();
-      setDoc(j);
-      onChangeRef.current(j);
+      const j = editor.getJSON()
+      setDoc(j)
+      onChangeRef.current(j)
     },
-  });
+  })
 
   const st = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
-      bold: e?.isActive("bold") ?? false,
-      italic: e?.isActive("italic") ?? false,
-      strike: e?.isActive("strike") ?? false,
-      h1: e?.isActive("heading", { level: 1 }) ?? false,
-      h2: e?.isActive("heading", { level: 2 }) ?? false,
-      h3: e?.isActive("heading", { level: 3 }) ?? false,
-      p: e?.isActive("paragraph") ?? false,
-      ul: e?.isActive("bulletList") ?? false,
-      ol: e?.isActive("orderedList") ?? false,
-      quote: e?.isActive("blockquote") ?? false,
+      bold: e?.isActive('bold') ?? false,
+      italic: e?.isActive('italic') ?? false,
+      strike: e?.isActive('strike') ?? false,
+      h1: e?.isActive('heading', { level: 1 }) ?? false,
+      h2: e?.isActive('heading', { level: 2 }) ?? false,
+      h3: e?.isActive('heading', { level: 3 }) ?? false,
+      p: e?.isActive('paragraph') ?? false,
+      ul: e?.isActive('bulletList') ?? false,
+      ol: e?.isActive('orderedList') ?? false,
+      quote: e?.isActive('blockquote') ?? false,
       canUndo: e?.can().undo() ?? false,
       canRedo: e?.can().redo() ?? false,
     }),
-  });
+  })
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor) return
     const h = () => {
-      const s = editor.state.selection;
-      if (s instanceof NodeSelection && ASSET_NODE_TYPES[s.node.type.name])
-        setSelected({ pos: s.from, type: s.node.type.name, attrs: s.node.attrs });
-      else setSelected(null);
-    };
-    editor.on("selectionUpdate", h);
-    editor.on("transaction", h);
+      const s = editor.state.selection
+      if (s instanceof NodeSelection && (ASSET_NODE_TYPES[s.node.type.name] || s.node.type.name === 'variable' || s.node.type.name === 'expressionRef')) setSelected({ pos: s.from, type: s.node.type.name, attrs: s.node.attrs })
+      else setSelected(null)
+    }
+    editor.on('selectionUpdate', h)
+    editor.on('transaction', h)
     return () => {
-      editor.off("selectionUpdate", h);
-      editor.off("transaction", h);
-    };
-  }, [editor]);
+      editor.off('selectionUpdate', h)
+      editor.off('transaction', h)
+    }
+  }, [editor])
 
   useEffect(() => {
-    editor?.setEditable(!preview, false);
-  }, [editor, preview]);
+    editor?.setEditable(!preview, false)
+  }, [editor, preview])
 
-  // “插入到报告” from asset pages
-  const inserted = useRef(false);
+  // Values depend on variable overrides: re-render NodeViews when they change.
   useEffect(() => {
-    if (!editor || !insertAssetId || inserted.current) return;
-    const a = assets[insertAssetId];
-    if (!a || a.kind === "report") return;
-    inserted.current = true;
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta('ctxRefresh', true))
+  }, [editor, ctx.env, ctx.params])
+
+  const inserted = useRef(false)
+  useEffect(() => {
+    if (!editor || !insertAssetId || inserted.current) return
+    const a = assets[insertAssetId]
+    if (!a || a.kind === 'report') return
+    inserted.current = true
     setTimeout(() => {
-      const end = editor.state.doc.content.size;
-      editor
-        .chain()
-        .insertContentAt(end, {
-          type: NODE_TYPE_FOR[a.kind],
-          attrs: { assetId: a.assetId, assetRevision: a.latest, overrides: {}, nodeId: uid("N") },
-        })
-        .setNodeSelection(end)
-        .run();
-      setTimeout(
-        () =>
-          (editor.view.nodeDOM(end) as HTMLElement | null)?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          }),
-        60,
-      );
-    }, 50);
-  }, [editor, insertAssetId, assets]);
+      const end = editor.state.doc.content.size
+      editor.commands.setTextSelection(end)
+      doInsert({ kind: a.kind, assetId: a.assetId, revision: a.latest })
+      setTimeout(() => scrollRef.current?.querySelector(`[data-asset-node]:last-of-type`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
+    }, 50)
+  }, [editor, insertAssetId, assets])
 
   const topPos = (index: number) => {
-    let pos = 0;
+    let pos = 0
     editor?.state.doc.forEach((_, offset, i) => {
-      if (i === index) pos = offset;
-    });
-    return pos;
-  };
+      if (i === index) pos = offset
+    })
+    return pos
+  }
   const scrollToIndex = (index: number) => {
-    if (!editor) return;
+    if (!editor) return
     if (preview) {
-      scrollRef.current
-        ?.querySelector(`[data-heading-index="${index}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
+      scrollRef.current?.querySelector(`[data-heading-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
     }
-    const pos = topPos(index);
-    const n = editor.state.doc.child(index);
-    if (ASSET_NODE_TYPES[n.type.name]) editor.chain().focus().setNodeSelection(pos).run();
-    else
-      editor
-        .chain()
-        .focus()
-        .setTextSelection(pos + 1)
-        .run();
-    (editor.view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-  };
+    const pos = topPos(index)
+    const n = editor.state.doc.child(index)
+    if (ASSET_NODE_TYPES[n.type.name]) editor.chain().focus().setNodeSelection(pos).run()
+    else editor.chain().focus().setTextSelection(pos + 1).run()
+    ;(editor.view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
   const replaceDoc = (d: JSONContent | null) => {
-    if (!d || !editor) return;
-    editor.commands.setContent(d, { emitUpdate: true });
-  };
+    if (!d || !editor) return
+    editor.commands.setContent(d, { emitUpdate: true })
+  }
   const updateAttrs = (patch: Record<string, any>) => {
-    if (!editor || !selected) return;
-    const node = editor.state.doc.nodeAt(selected.pos);
-    if (!node) return;
-    const tr = editor.state.tr.setNodeMarkup(selected.pos, undefined, { ...node.attrs, ...patch });
-    tr.setSelection(NodeSelection.create(tr.doc, selected.pos));
-    editor.view.dispatch(tr);
-  };
+    if (!editor || !selected) return
+    const node = editor.state.doc.nodeAt(selected.pos)
+    if (!node) return
+    const tr = editor.state.tr.setNodeMarkup(selected.pos, undefined, { ...node.attrs, ...patch })
+    tr.setSelection(NodeSelection.create(tr.doc, selected.pos))
+    editor.view.dispatch(tr)
+  }
   const setOverride = (k: string, v: any) => {
-    const cur = { ...(selected?.attrs.overrides ?? {}) };
-    if (
-      v === undefined ||
-      v === null ||
-      v === "" ||
-      (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0)
-    )
-      delete cur[k];
-    else cur[k] = v;
-    updateAttrs({ overrides: cur });
-  };
+    const cur = { ...(selected?.attrs.overrides ?? {}) }
+    if (v === undefined || v === null || v === '' || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0)) delete cur[k]
+    else cur[k] = v
+    updateAttrs({ overrides: cur })
+  }
 
   const outlineItems = useMemo(
     () =>
       (doc.content ?? []).flatMap((n, index): OutlineItem[] => {
-        if (n.type === "heading")
-          return [
-            { index, kind: "h", level: n.attrs?.level ?? 1, text: docText(n) || "（空标题）" },
-          ];
-        if (n.type && ASSET_NODE_TYPES[n.type])
-          return [
-            {
-              index,
-              kind: "a",
-              level: 9,
-              text: n.attrs?.assetId,
-              assetKind: ASSET_NODE_TYPES[n.type],
-              rev: n.attrs?.assetRevision,
-            },
-          ];
-        return [];
+        if (n.type === 'heading') return [{ index, kind: 'h', level: n.attrs?.level ?? 1, text: docText(n) || '（空标题）' }]
+        if (n.type && ASSET_NODE_TYPES[n.type]) return [{ index, kind: 'a', level: 9, text: n.attrs?.assetId, assetKind: ASSET_NODE_TYPES[n.type], rev: n.attrs?.assetRevision }]
+        return []
       }),
     [doc],
-  );
-  const refs = collectRefs(doc);
-  const ctxValue: ReportCtxValue = { ...ctx, preview };
-  const vars = collectVarsInDoc(doc);
+  )
+  // hide items inside collapsed sections (outline grouping is independent of panel collapse)
+  const visibleOutline = useMemo(() => {
+    const out: (OutlineItem & { hiddenBy?: number; sectionKey?: string; hasChildren?: boolean })[] = []
+    let hideUntil = -1
+    for (const o of outlineItems) {
+      if (o.index < hideUntil) continue
+      const key = `${docKey ?? ''}:${o.index}:${o.text}`
+      if (o.kind === 'h' && o.level >= 2) {
+        const [, end] = sectionRange(doc, o.index)
+        const hasChildren = outlineItems.some((x) => x.index > o.index && x.index < end)
+        out.push({ ...o, sectionKey: key, hasChildren })
+        if (collapsedSections[key]) hideUntil = end
+      } else out.push(o)
+    }
+    return out
+  }, [outlineItems, collapsedSections, doc, docKey])
+  const refs = collectRefs(doc)
+  const inlineRefs = collectInlineRefs(doc)
+  const ctxValue: ReportCtxValue = { ...ctx, preview }
+  const sectionCount = outlineItems.filter((o) => o.kind === 'h' && o.level === 2).length
 
-  const TB = ({
-    on,
-    onClick,
-    icon,
-    label,
-    disabled,
-  }: {
-    on?: boolean;
-    onClick: () => void;
-    icon: any;
-    label: string;
-    disabled?: boolean;
-  }) => {
-    const I = icon;
+  const TB = ({ on, onClick, icon, label, disabled }: { on?: boolean; onClick: () => void; icon: any; label: string; disabled?: boolean }) => {
+    const I = icon
     return (
-      <button
-        title={label}
-        aria-label={label}
-        disabled={disabled}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onClick}
-        className={cx(
-          "size-7 grid place-items-center rounded text-ink-2 hover:bg-gray-100 disabled:opacity-30",
-          on && "bg-brand-50 text-brand-700",
-        )}
-      >
+      <button title={label} aria-label={label} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick} className={cx('size-7 grid place-items-center rounded text-ink-2 hover:bg-gray-100 disabled:opacity-30', on && 'bg-brand-50 text-brand-700')}>
         <I className="size-4" />
       </button>
-    );
-  };
+    )
+  }
+  const zoomValue = zoom === 'fit' ? undefined : Number(zoom)
 
   return (
     <ReportCtx.Provider value={ctxValue}>
       <div className="flex-1 min-h-0 flex">
-        {/* outline */}
-        <aside className="w-[216px] shrink-0 bg-white border-r border-line flex flex-col">
-          <div className="flex items-center justify-between px-3.5 h-10 border-b border-line">
-            <span className="text-[12.5px] font-semibold">章节目录</span>
-            {!preview && (
-              <Button
-                size="xs"
-                variant="ghost"
-                icon={<Plus className="size-3" />}
-                onClick={() =>
-                  replaceDoc(
-                    addSection(
-                      doc,
-                      null,
-                      `${outlineItems.filter((o) => o.kind === "h" && o.level === 2).length + 1}. 新章节`,
-                    ),
-                  )
-                }
-              >
+        <SidePanel
+          id="outline"
+          side="left"
+          title="章节目录"
+          actions={
+            !preview && (
+              <Button size="xs" variant="ghost" icon={<Plus className="size-3" />} aria-label="新增章节" onClick={() => replaceDoc(addSection(doc, null, `${sectionCount + 1}. 新章节`))}>
                 章节
               </Button>
-            )}
-          </div>
-          <div className="flex-1 overflow-auto scroll-thin p-2 space-y-px">
-            {outlineItems.map((o) =>
-              o.kind === "h" ? (
-                <div
-                  key={o.index}
-                  className="group flex items-center rounded hover:bg-gray-50"
-                  style={{ paddingLeft: (o.level - 1) * 10 }}
-                >
-                  <button
-                    onClick={() => scrollToIndex(o.index)}
-                    className={cx(
-                      "flex-1 text-left truncate py-1.5 px-1.5 text-[12.5px]",
-                      o.level === 1
-                        ? "font-semibold text-ink"
-                        : o.level === 2
-                          ? "text-ink-2 font-medium"
-                          : "text-ink-3",
-                    )}
-                  >
+            )
+          }
+        >
+          <div className="p-2 space-y-px" data-outline="">
+            {visibleOutline.map((o) =>
+              o.kind === 'h' ? (
+                <div key={o.index} className="group flex items-center rounded hover:bg-gray-50 focus-within:bg-gray-50" style={{ paddingLeft: (o.level - 1) * 8 }}>
+                  {o.sectionKey && o.hasChildren ? (
+                    <button
+                      aria-expanded={!collapsedSections[o.sectionKey]}
+                      aria-label={collapsedSections[o.sectionKey] ? `展开章节 ${o.text}` : `折叠章节 ${o.text}`}
+                      onClick={() => toggleSection(o.sectionKey!)}
+                      className="size-5 grid place-items-center rounded hover:bg-gray-200 shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    >
+                      {collapsedSections[o.sectionKey] ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+                    </button>
+                  ) : (
+                    <span className="w-5 shrink-0" />
+                  )}
+                  <button onClick={() => scrollToIndex(o.index)} className={cx('flex-1 text-left truncate py-1.5 px-1 text-[12.5px] outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded', o.level === 1 ? 'font-semibold text-ink' : o.level === 2 ? 'text-ink-2 font-medium' : 'text-ink-3')}>
                     {o.text}
                   </button>
                   {!preview && o.level >= 2 && (
-                    <span className="hidden group-hover:flex items-center pr-1">
-                      <button
-                        title="上移章节"
-                        onClick={() => replaceDoc(moveSection(doc, o.index, -1))}
-                        className="size-5 grid place-items-center rounded hover:bg-gray-200"
-                      >
+                    <span className="hidden group-hover:flex group-focus-within:flex items-center pr-1">
+                      <button title="上移章节" aria-label={`上移章节 ${o.text}`} onClick={() => replaceDoc(moveSection(doc, o.index, -1))} className="size-5 grid place-items-center rounded hover:bg-gray-200 outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
                         <ArrowUp className="size-3" />
                       </button>
-                      <button
-                        title="下移章节"
-                        onClick={() => replaceDoc(moveSection(doc, o.index, 1))}
-                        className="size-5 grid place-items-center rounded hover:bg-gray-200"
-                      >
+                      <button title="下移章节" aria-label={`下移章节 ${o.text}`} onClick={() => replaceDoc(moveSection(doc, o.index, 1))} className="size-5 grid place-items-center rounded hover:bg-gray-200 outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
                         <ArrowDown className="size-3" />
                       </button>
-                      <button
-                        title="在此后插入章节"
-                        onClick={() => replaceDoc(addSection(doc, o.index, "新章节"))}
-                        className="size-5 grid place-items-center rounded hover:bg-gray-200"
-                      >
+                      <button title="在此后插入章节" aria-label={`在 ${o.text} 后插入章节`} onClick={() => replaceDoc(addSection(doc, o.index, '新章节'))} className="size-5 grid place-items-center rounded hover:bg-gray-200 outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
                         <Plus className="size-3" />
                       </button>
-                      <button
-                        title="删除整个章节"
-                        onClick={() => replaceDoc(deleteSection(doc, o.index))}
-                        className="size-5 grid place-items-center rounded hover:bg-red-100 text-red-600"
-                      >
+                      <button title="删除整个章节" aria-label={`删除章节 ${o.text}`} onClick={() => replaceDoc(deleteSection(doc, o.index))} className="size-5 grid place-items-center rounded hover:bg-red-100 text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                         <Trash2 className="size-3" />
                       </button>
                     </span>
@@ -396,17 +343,11 @@ export function ReportWorkbench({
                 <button
                   key={o.index}
                   onClick={() => scrollToIndex(o.index)}
-                  className={cx(
-                    "w-full flex items-center gap-1.5 pl-6 pr-1.5 py-1 rounded text-[11.5px] text-ink-3 hover:bg-gray-50",
-                    selected &&
-                      editor &&
-                      topPos(o.index) === selected.pos &&
-                      "bg-brand-50 text-brand-700",
-                  )}
+                  className={cx('w-full flex items-center gap-1.5 pl-8 pr-1.5 py-1 rounded text-[11.5px] text-ink-3 hover:bg-gray-50', selected && editor && topPos(o.index) === selected.pos && 'bg-brand-50 text-brand-700')}
                 >
                   {(() => {
-                    const I = KIND_ICON[o.assetKind!];
-                    return <I className="size-3 shrink-0" />;
+                    const I = KIND_ICON[o.assetKind!]
+                    return <I className="size-3 shrink-0" />
                   })()}
                   <span className="font-mono truncate">
                     {o.text} r{o.rev}
@@ -415,197 +356,61 @@ export function ReportWorkbench({
               ),
             )}
           </div>
-          <div className="p-3 border-t border-line text-[11px] text-ink-3">
-            {refs.length} 个资源节点 · {vars.length} 种变量
+          <div className="px-3 py-2 border-t border-line text-[11px] text-ink-3">
+            {refs.length} 个资源节点 · {inlineRefs.length} 个行内引用
           </div>
-        </aside>
+        </SidePanel>
 
-        {/* canvas */}
-        <div className="flex-1 min-w-0 flex flex-col bg-[#EEF0F3]">
-          {!preview && (
-            <div className="shrink-0 h-11 bg-white border-b border-line px-3 flex items-center gap-0.5">
-              <TB
-                icon={Undo2}
-                label="撤销"
-                disabled={!st?.canUndo}
-                onClick={() => editor?.chain().focus().undo().run()}
-              />
-              <TB
-                icon={Redo2}
-                label="恢复"
-                disabled={!st?.canRedo}
-                onClick={() => editor?.chain().focus().redo().run()}
-              />
-              <span className="w-px h-5 bg-line mx-1" />
-              <TB
-                icon={Heading1}
-                label="一级标题"
-                on={st?.h1}
-                onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-              />
-              <TB
-                icon={Heading2}
-                label="二级标题（章节）"
-                on={st?.h2}
-                onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-              />
-              <TB
-                icon={Heading3}
-                label="三级标题"
-                on={st?.h3}
-                onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-              />
-              <TB
-                icon={Pilcrow}
-                label="正文段落"
-                on={st?.p}
-                onClick={() => editor?.chain().focus().setParagraph().run()}
-              />
-              <span className="w-px h-5 bg-line mx-1" />
-              <TB
-                icon={Bold}
-                label="加粗"
-                on={st?.bold}
-                onClick={() => editor?.chain().focus().toggleBold().run()}
-              />
-              <TB
-                icon={Italic}
-                label="斜体"
-                on={st?.italic}
-                onClick={() => editor?.chain().focus().toggleItalic().run()}
-              />
-              <TB
-                icon={Strikethrough}
-                label="删除线"
-                on={st?.strike}
-                onClick={() => editor?.chain().focus().toggleStrike().run()}
-              />
-              <TB
-                icon={List}
-                label="无序列表"
-                on={st?.ul}
-                onClick={() => editor?.chain().focus().toggleBulletList().run()}
-              />
-              <TB
-                icon={ListOrdered}
-                label="有序列表"
-                on={st?.ol}
-                onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-              />
-              <TB
-                icon={Quote}
-                label="引用"
-                on={st?.quote}
-                onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-              />
-              <span className="w-px h-5 bg-line mx-1" />
-              {mode === "template" && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={<BarChart3 className="size-3.5" />}
-                    onClick={() => setInsertKind("chart")}
-                  >
-                    图表
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={<Table2 className="size-3.5" />}
-                    onClick={() => setInsertKind("table")}
-                  >
-                    分析表
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={<FileSpreadsheet className="size-3.5" />}
-                    onClick={() => setInsertKind("fixed")}
-                  >
-                    固定表
-                  </Button>
-                </>
-              )}
-              <div className="relative">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Braces className="size-3.5" />}
-                  onClick={() => setVarOpen(!varOpen)}
-                >
+        <div className="flex-1 min-w-0 flex flex-col bg-[#EEF0F3]" data-canvas="">
+          <div className="shrink-0 bg-white border-b border-line px-3 py-1.5 flex flex-wrap items-center gap-0.5" data-toolbar="">
+            {!preview && (
+              <>
+                <TB icon={Undo2} label="撤销" disabled={!st?.canUndo} onClick={() => editor?.chain().focus().undo().run()} />
+                <TB icon={Redo2} label="恢复" disabled={!st?.canRedo} onClick={() => editor?.chain().focus().redo().run()} />
+                <span className="w-px h-5 bg-line mx-1" />
+                <TB icon={Heading1} label="一级标题" on={st?.h1} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} />
+                <TB icon={Heading2} label="二级标题（章节）" on={st?.h2} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} />
+                <TB icon={Heading3} label="三级标题" on={st?.h3} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} />
+                <TB icon={Pilcrow} label="正文段落" on={st?.p} onClick={() => editor?.chain().focus().setParagraph().run()} />
+                <span className="w-px h-5 bg-line mx-1" />
+                <TB icon={Bold} label="加粗" on={st?.bold} onClick={() => editor?.chain().focus().toggleBold().run()} />
+                <TB icon={Italic} label="斜体" on={st?.italic} onClick={() => editor?.chain().focus().toggleItalic().run()} />
+                <TB icon={Strikethrough} label="删除线" on={st?.strike} onClick={() => editor?.chain().focus().toggleStrike().run()} />
+                <TB icon={List} label="无序列表" on={st?.ul} onClick={() => editor?.chain().focus().toggleBulletList().run()} />
+                <TB icon={ListOrdered} label="有序列表" on={st?.ol} onClick={() => editor?.chain().focus().toggleOrderedList().run()} />
+                <TB icon={Quote} label="引用" on={st?.quote} onClick={() => editor?.chain().focus().toggleBlockquote().run()} />
+                <span className="w-px h-5 bg-line mx-1" />
+                <Button size="sm" variant="ghost" icon={<BarChart3 className="size-3.5" />} onClick={() => setPicker(['chart'])}>
+                  图表
+                </Button>
+                <Button size="sm" variant="ghost" icon={<Table2 className="size-3.5" />} onClick={() => setPicker(['table'])}>
+                  分析表
+                </Button>
+                <Button size="sm" variant="ghost" icon={<FileSpreadsheet className="size-3.5" />} onClick={() => setPicker(['fixed'])}>
+                  固定表
+                </Button>
+                <Button size="sm" variant="ghost" icon={<Braces className="size-3.5" />} onClick={() => setPicker(['variable'])}>
                   变量
                 </Button>
-                {varOpen && (
-                  <div className="absolute z-30 top-8 left-0 w-72 bg-white border border-line rounded-lg shadow-xl p-1.5">
-                    {VARIABLES.map((v) => (
-                      <button
-                        key={v.name}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          editor
-                            ?.chain()
-                            .focus()
-                            .insertContent({ type: "variable", attrs: { name: v.name } })
-                            .run();
-                          setVarOpen(false);
-                        }}
-                        className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-gray-50 text-[12.5px]"
-                      >
-                        <span>{v.label}</span>
-                        <span className="font-mono text-[11px] text-violet-700">{`{{${v.name}}}`}</span>
-                      </button>
-                    ))}
-                    <div className="flex gap-1 p-1 border-t border-line mt-1">
-                      <TextInput
-                        value={customVar}
-                        onChange={(e) => setCustomVar(e.target.value.replace(/\W/g, ""))}
-                        placeholder="自定义变量名"
-                        className="h-7 text-xs"
-                      />
-                      <Button
-                        size="sm"
-                        disabled={!customVar}
-                        onClick={() => {
-                          editor
-                            ?.chain()
-                            .focus()
-                            .insertContent({ type: "variable", attrs: { name: customVar } })
-                            .run();
-                          setCustomVar("");
-                          setVarOpen(false);
-                        }}
-                      >
-                        插入
-                      </Button>
-                    </div>
-                    <div className="px-2 pb-1 text-[10.5px] text-ink-3">
-                      未定义的变量会在生成时报错
-                    </div>
-                  </div>
-                )}
-              </div>
-              <span className="flex-1" />
-              {headerSlot}
-            </div>
-          )}
-          <div
-            ref={scrollRef}
-            className="flex-1 overflow-auto scroll-thin py-8 px-6"
-            onClick={() => varOpen && setVarOpen(false)}
-          >
-            <div className="mx-auto w-full max-w-[820px] bg-white rounded-sm shadow-[0_2px_10px_rgba(16,24,40,.08)] px-10 py-12 relative">
+                <Button size="sm" variant="ghost" icon={<Sigma className="size-3.5" />} onClick={() => setPicker(['expression'])}>
+                  表达式
+                </Button>
+                <span className="text-[11px] text-ink-3 inline-flex items-center gap-1 ml-1" title="在正文中输入 / 唤起插入菜单">
+                  <Slash className="size-3" />
+                  输入 / 插入
+                </span>
+              </>
+            )}
+            <span className="flex-1" />
+            <Select size="sm" className="w-28" value={zoom} onChange={setZoom} options={ZOOMS} aria-label="页面缩放" />
+            {headerSlot}
+          </div>
+          <div ref={scrollRef} className="flex-1 overflow-auto scroll-thin py-6 px-4">
+            <div style={{ zoom: zoomValue } as any} className="mx-auto w-full max-w-[820px] bg-white rounded-sm shadow-[0_2px_10px_rgba(16,24,40,.08)] px-10 py-12 relative">
               <div className="absolute top-3 right-4 text-[10px] font-semibold text-amber-700 tracking-wider">
-                DEMO / 演示数据 ·{" "}
-                {mode === "template"
-                  ? preview
-                    ? "模板预览（变量已替换）"
-                    : "模板编辑"
-                  : preview
-                    ? "实例预览"
-                    : "实例编辑"}
+                DEMO / 演示数据 · {mode === 'template' ? (preview ? '模板预览' : '模板编辑') : preview ? '实例预览' : '实例编辑'}
               </div>
-              <div className={cx(preview && "hidden")}>
+              <div className={cx(preview && 'hidden')}>
                 <EditorContent editor={editor} />
               </div>
               {preview && <DocRenderer doc={doc} />}
@@ -613,9 +418,8 @@ export function ReportWorkbench({
           </div>
         </div>
 
-        {/* right panel */}
-        <aside className="w-[320px] shrink-0 bg-white border-l border-line overflow-auto scroll-thin">
-          {selected && !preview ? (
+        <SidePanel id="props" side="right" title={selected && !preview ? '节点属性' : '文档属性'}>
+          {selected && !preview && ASSET_NODE_TYPES[selected.type] ? (
             <NodePanel
               sel={selected}
               mode={mode}
@@ -624,173 +428,203 @@ export function ReportWorkbench({
               onAttrs={updateAttrs}
               onClear={() => updateAttrs({ overrides: {} })}
               onDelete={() => editor?.chain().focus().deleteSelection().run()}
-              onEditShared={(kind, id) =>
-                go(kind === "chart" ? "chart" : kind === "table" ? "table" : "fixed", {
-                  assetId: id,
-                })
-              }
+              onEditShared={(kind, id) => go(kind === 'chart' ? 'chart' : kind === 'table' ? 'table' : 'fixed', { assetId: id })}
               assets={assets}
             />
+          ) : selected && !preview ? (
+            <InlinePanel sel={selected} mode={mode} ctx={ctx} varValues={varValues} onVarValue={onVarValue} onAttrs={updateAttrs} onDelete={() => editor?.chain().focus().deleteSelection().run()} />
           ) : (
             <>
               <Section title="数据参数">
-                {mode === "template" ? (
+                {mode === 'template' ? (
                   <>
                     <DataContextBar value={ctx.params} onChange={(p) => onParamsChange?.(p)} />
-                    <div className="text-[11px] text-ink-3">
-                      模板默认参数，用于编辑时的演示填数和预览；生成实例时可重新选择。
-                    </div>
+                    <div className="text-[11px] text-ink-3">模板默认参数（编辑与预览共用）；生成实例时可重新选择。</div>
                   </>
                 ) : (
                   <div className="text-[12.5px] space-y-1">
                     <div>
-                      冻结范围：<b>{ctx.params.simulationId}</b> / {ctx.params.branch} / Tick{" "}
-                      {ctx.params.tick}
+                      冻结范围：<b>{ctx.params.simulationId}</b> / {ctx.params.branch} / Tick {ctx.params.tick}
                     </div>
-                    <div className="text-[11px] text-ink-3">
-                      实例的数据范围在生成时固定，不随共享资产变化。
-                    </div>
+                    <div className="text-[11px] text-ink-3">实例在生成时固定数据范围与依赖快照；可通过实例作用域变量做局部修订。</div>
                   </div>
                 )}
               </Section>
-              <Section title="变量（点击插入）">
-                <div className="space-y-1">
-                  {VARIABLES.map((v) => (
-                    <button
-                      key={v.name}
-                      disabled={preview}
-                      onClick={() =>
-                        editor
-                          ?.chain()
-                          .focus()
-                          .insertContent({ type: "variable", attrs: { name: v.name } })
-                          .run()
-                      }
-                      className="w-full flex items-center justify-between text-[12px] px-2 py-1 rounded hover:bg-gray-50 disabled:hover:bg-transparent"
-                    >
-                      <span className="font-mono text-violet-700">{`{{${v.name}}}`}</span>
-                      <span className="tabular-nums text-ink">
-                        {ctx.vars[v.name] === null || ctx.vars[v.name] === undefined
-                          ? "—"
-                          : String(ctx.vars[v.name])}
+              <Section title={`行内变量与表达式（${inlineRefs.length}）`}>
+                {inlineRefs.length === 0 && <div className="text-[12px] text-ink-3">尚未插入。在正文输入 / 搜索“变量”或“表达式”。</div>}
+                {[...new Map(inlineRefs.map((r) => [inlineKey(r), r])).values()].map((r) => {
+                  const { result, snap } = resolveInline(r, ctx.params, ctx.env)
+                  return (
+                    <div key={inlineKey(r)} className="flex items-center justify-between gap-2 text-[12px] px-1 py-1 border-b border-gray-100 last:border-0">
+                      <span className="truncate">
+                        <Badge tone={r.type === 'variable' ? 'violet' : 'green'} className="mr-1">
+                          {r.type === 'variable' ? '变量' : '表达式'}
+                        </Badge>
+                        {snap?.title ?? r.name ?? r.assetId}
+                        <span className="font-mono text-[10.5px] text-ink-3 ml-1">{r.assetId ? `${r.assetId}@r${r.revision}` : `旧名称 ${r.name}`}</span>
                       </span>
-                    </button>
-                  ))}
-                </div>
-                {vars.filter((v) => !KNOWN_VARIABLES.has(v)).length > 0 && (
-                  <div className="text-[11.5px] text-red-700 bg-red-50 border border-red-200 rounded p-2">
-                    文档中存在未定义变量：
-                    {vars
-                      .filter((v) => !KNOWN_VARIABLES.has(v))
-                      .map((v) => `{{${v}}}`)
-                      .join("、")}
+                      <span className={cx('tabular-nums font-semibold shrink-0', result.status === 'invalid' && 'text-red-700')}>{formatResult(result)}</span>
+                    </div>
+                  )
+                })}
+                {Object.keys(varValues).length > 0 && (
+                  <div className="text-[11px] text-violet-800 bg-violet-50 border border-violet-100 rounded p-2 mt-1">
+                    当前{mode === 'template' ? '模板' : '实例'}变量覆盖：{Object.entries(varValues).map(([k, v]) => `${k} = ${v}`).join('；')}
                   </div>
                 )}
               </Section>
-              <Section title={`资源引用（${refs.length}）`}>
-                {refs.length === 0 && (
-                  <div className="text-[12px] text-ink-3">尚未插入共享资产节点</div>
-                )}
+              <Section title={`资源节点（${refs.length}）`}>
+                {refs.length === 0 && <div className="text-[12px] text-ink-3">尚未插入共享资产节点</div>}
                 {refs.map((r) => {
-                  const snap = ctx.resolveSnapshot(r.assetId, r.assetRevision);
-                  const latest = ctx.latestRevision(r.assetId);
-                  const I = KIND_ICON[r.kind];
+                  const snap = ctx.resolveSnapshot(r.assetId, r.assetRevision)
+                  const latest = ctx.latestRevision(r.assetId)
+                  const I = KIND_ICON[r.kind]
                   return (
                     <button
                       key={r.nodeId}
                       onClick={() => {
-                        const idx = (doc.content ?? []).findIndex(
-                          (n) => n.attrs?.nodeId === r.nodeId,
-                        );
-                        if (idx >= 0) {
-                          if (preview) return;
-                          scrollToIndex(idx);
-                        }
+                        const idx = (doc.content ?? []).findIndex((n) => n.attrs?.nodeId === r.nodeId)
+                        if (idx >= 0 && !preview) scrollToIndex(idx)
                       }}
                       className="w-full text-left p-2 rounded-md border border-line hover:bg-gray-50"
                     >
                       <div className="flex items-center gap-1.5">
                         <I className="size-3.5 text-brand-600" />
-                        <span className="text-[12px] text-ink truncate flex-1">
-                          {snap?.title ?? "（缺失资产）"}
-                        </span>
+                        <span className="text-[12px] text-ink truncate flex-1">{snap?.title ?? '（缺失资产）'}</span>
                         {!snap && <Badge tone="red">引用失效</Badge>}
                         {overrideKeys(r.overrides).length > 0 && <Badge tone="violet">覆盖</Badge>}
                       </div>
                       <div className="text-[10.5px] font-mono text-ink-3 mt-0.5">
                         {r.nodeId} · {r.assetId} r{r.assetRevision}
-                        {mode === "template" && latest && latest > r.assetRevision
-                          ? ` · 最新 r${latest}`
-                          : ""}
+                        {latest && latest > r.assetRevision ? ` · 最新 r${latest}` : ''}
                       </div>
                     </button>
-                  );
+                  )
                 })}
               </Section>
             </>
           )}
-        </aside>
+        </SidePanel>
       </div>
 
-      <Modal
-        open={!!insertKind}
-        title={`插入共享${insertKind ? KIND_LABEL[insertKind] : ""}（引用）`}
-        onClose={() => setInsertKind(null)}
-        width={560}
-        footer={<Button onClick={() => setInsertKind(null)}>取消</Button>}
-      >
-        <p className="mb-3 text-[12.5px]">
-          节点将保存 assetId、assetRevision（当前最新）与空的
-          overrides；后续共享版本更新不会自动改变此节点。
-        </p>
-        <div className="space-y-1.5">
-          {Object.values(assets)
-            .filter((a) => a.kind === insertKind)
-            .map((a) => {
-              const I = KIND_ICON[a.kind];
-              return (
-                <button
-                  key={a.assetId}
-                  onClick={() => {
-                    editor
-                      ?.chain()
-                      .focus()
-                      .insertContent({
-                        type: NODE_TYPE_FOR[a.kind],
-                        attrs: {
-                          assetId: a.assetId,
-                          assetRevision: a.latest,
-                          overrides: {},
-                          nodeId: uid("N"),
-                        },
-                      })
-                      .run();
-                    setInsertKind(null);
-                  }}
-                  className="w-full flex items-center gap-2.5 p-2.5 rounded-md border border-line hover:bg-brand-50 hover:border-brand-200 text-left"
-                >
-                  <I className="size-4 text-brand-600" />
-                  <span className="flex-1 text-ink">{a.title}</span>
-                  <span className="font-mono text-[11px] text-ink-3">
-                    {a.assetId} r{a.latest}
-                  </span>
-                </button>
-              );
-            })}
-        </div>
-      </Modal>
+      <ResourcePicker
+        open={!!picker}
+        onClose={() => setPicker(null)}
+        kinds={picker ?? []}
+        title={mode === 'instance' ? '插入共享资源到当前实例（将同时快照其依赖链）' : '插入共享资源（引用）'}
+        onPick={(p) => doInsert({ kind: p.kind, assetId: p.assetId, revision: p.revision })}
+      />
     </ReportCtx.Provider>
-  );
+  )
 }
 
-function collectVarsInDoc(doc: JSONContent): string[] {
-  const s = new Set<string>();
-  const walk = (n: JSONContent) => {
-    if (n.type === "variable") s.add(n.attrs?.name);
-    n.content?.forEach(walk);
-  };
-  walk(doc);
-  return [...s];
+/** Properties for inline variable / expression nodes: identity, pinned revision, value and source. */
+function InlinePanel({
+  sel,
+  mode,
+  ctx,
+  varValues,
+  onVarValue,
+  onAttrs,
+  onDelete,
+}: {
+  sel: Selected
+  mode: 'template' | 'instance'
+  ctx: Omit<ReportCtxValue, 'preview'>
+  varValues: Record<string, any>
+  onVarValue: (id: string, v: any) => void
+  onAttrs: (p: Record<string, any>) => void
+  onDelete: () => void
+}) {
+  const go = useUI((s) => s.go)
+  const resources = useApp((s) => s.resources)
+  const type = sel.type as 'variable' | 'expressionRef'
+  const ref = { type, name: sel.attrs.name, assetId: sel.attrs.assetId ?? undefined, revision: sel.attrs.revision ?? undefined }
+  const { result, snap } = resolveInline(ref, ctx.params, ctx.env)
+  const latest = snap ? resources[snap.assetId]?.latest : undefined
+  const [val, setVal] = useState<string>(snap && varValues[snap.assetId] !== undefined ? String(varValues[snap.assetId]) : '')
+  const def = snap?.def as VariableDef | ExpressionDef | undefined
+  return (
+    <div data-inline-panel={type}>
+      <div className="p-3.5 border-b border-line space-y-2">
+        <div className="text-[13px] font-semibold flex items-center gap-2">
+          {type === 'variable' ? <Braces className="size-4 text-violet-600" /> : <Sigma className="size-4 text-emerald-600" />}
+          {snap?.title ?? ref.name ?? ref.assetId}
+        </div>
+        <div className="grid grid-cols-[72px_1fr] gap-y-1 text-[11.5px]">
+          <span className="text-ink-3">节点类型</span>
+          <span className="font-mono">{type}</span>
+          <span className="text-ink-3">资源 ID</span>
+          <span className="font-mono">{snap?.assetId ?? ref.assetId ?? '—'}</span>
+          <span className="text-ink-3">固定修订</span>
+          <span className="font-mono">
+            {ref.assetId ? `r${ref.revision}` : `未固定（旧名称 ${ref.name}，按别名解析 r${snap?.revision ?? '?'}）`}
+            {latest && ref.revision && latest > ref.revision ? <span className="text-amber-700">（共享最新 r{latest}）</span> : ''}
+          </span>
+          <span className="text-ink-3">数据上下文</span>
+          <span>
+            {ctx.params.simulationId} · Tick {ctx.params.tick ?? '—'}
+          </span>
+          <span className="text-ink-3">当前值</span>
+          <span className={cx('font-semibold tabular-nums', result.status === 'invalid' && 'text-red-700')} data-inline-result="">
+            {formatResult(result, (def as ExpressionDef)?.decimals ?? null, true)}
+          </span>
+        </div>
+        {def && 'formula' in def && <div className="font-mono text-[11.5px] bg-gray-50 border border-line rounded px-2 py-1 break-all">{def.formula}</div>}
+        {def && 'source' in def && (
+          <div className="text-[11.5px] text-ink-2">
+            来源：{def.source.kind === 'context' ? `上下文 ${def.source.path}` : def.source.kind === 'expression' ? `共享表达式 ${def.source.ref.assetId}@r${def.source.ref.revision}` : `常量 ${String(def.defaultValue)}`} · 类型 {def.type} · 作用域 {def.scope}
+          </div>
+        )}
+      </div>
+      {type === 'variable' && snap && (
+        <Section title={`当前值（仅本${mode === 'template' ? '模板' : '实例'}）`}>
+          <div className="text-[11.5px] text-violet-800 bg-violet-50 border border-violet-100 rounded p-2">写入{mode === 'template' ? '模板' : '实例'}变量值，不修改共享变量定义，也不影响其它报告。{(def as VariableDef).source.kind === 'context' && ['tick', 'simulationId', 'branch'].includes(((def as VariableDef).source as any).path) ? ' 该变量绑定上下文，覆盖后本文档所有图表、表格和表达式按新上下文重算。' : ''}</div>
+          <div className="flex gap-1.5">
+            <TextInput value={val} onChange={(e) => setVal(e.target.value)} placeholder="留空 = 使用定义/上下文" aria-label="变量当前值" />
+            <Button size="sm" variant="subtle" onClick={() => onVarValue(snap.assetId, val === '' ? null : (def as VariableDef).type === 'number' ? Number(val) : val)}>
+              应用
+            </Button>
+          </div>
+          {varValues[snap.assetId] !== undefined && (
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                setVal('')
+                onVarValue(snap.assetId, null)
+              }}
+            >
+              恢复默认（当前覆盖 = {String(varValues[snap.assetId])}）
+            </Button>
+          )}
+        </Section>
+      )}
+      <Section title="引用">
+        {!ref.assetId && snap && (
+          <Button size="sm" className="w-full" onClick={() => onAttrs({ assetId: snap.assetId, revision: snap.revision })}>
+            转换为结构化引用（{snap.assetId}@r{snap.revision}）
+          </Button>
+        )}
+        {ref.assetId && latest && ref.revision && latest > ref.revision && mode === 'template' && (
+          <Button size="sm" variant="subtle" className="w-full" icon={<ArrowUpCircle className="size-3.5" />} onClick={() => onAttrs({ revision: latest })}>
+            显式升级到 r{latest}
+          </Button>
+        )}
+        {ref.assetId && mode === 'template' && resources[ref.assetId] && (
+          <Select<number> value={ref.revision!} onChange={(v) => onAttrs({ revision: v })} options={resources[ref.assetId].revisions.map((r) => ({ value: r.revision, label: `r${r.revision} · ${r.note}` }))} aria-label="固定修订" />
+        )}
+        {snap && (
+          <Button size="sm" className="w-full" icon={<ExternalLink className="size-3.5" />} onClick={() => go('resource', { assetId: snap.assetId })}>
+            打开共享{type === 'variable' ? '变量' : '表达式'}定义
+          </Button>
+        )}
+        <Button size="sm" variant="danger" className="w-full" icon={<Trash2 className="size-3.5" />} onClick={onDelete}>
+          从文档删除此引用
+        </Button>
+      </Section>
+    </div>
+  )
 }
 
 function NodePanel({
@@ -814,7 +648,7 @@ function NodePanel({
   onEditShared: (kind: AssetKind, id: string) => void;
   assets: ReturnType<typeof useApp.getState>["assets"];
 }) {
-  const kind = ASSET_NODE_TYPES[sel.type];
+  const kind = ASSET_NODE_TYPES[sel.type] as AssetKind;
   const { assetId, assetRevision, nodeId } = sel.attrs;
   const ov: Record<string, any> = sel.attrs.overrides ?? {};
   const snap = ctx.resolveSnapshot(assetId, assetRevision);
@@ -1047,15 +881,39 @@ function NodePanel({
             </Field>
           )}
           {ds && ds !== "taskSchedule" && ds !== "printStressRows" && (
-            <Field label="节点筛选（仅此处）">
-              <FilterEditor
-                dataSetId={ds}
-                ctx={ctx.params}
-                filters={ov.filters ?? {}}
-                onChange={(f) => onOverride("filters", Object.keys(f).length ? f : undefined)}
+            <Field label="节点筛选（仅此处）" hint={`资产默认筛选：${JSON.stringify((snap.def as any).filters ?? {})}`}>
+              <Segmented
+                size="sm"
+                value={(ov.filterMode ?? (ov.filters ? "merge" : "inherit")) as "inherit" | "merge" | "replace"}
+                onChange={(v) => onAttrs({ overrides: { ...ov, filterMode: v === "inherit" ? undefined : v, filters: v === "inherit" ? undefined : (ov.filters ?? {}) } })}
+                options={[
+                  { value: "inherit", label: "继承资产" },
+                  { value: "merge", label: "合并" },
+                  { value: "replace", label: "替换（可清空）" },
+                ]}
               />
+              <div className="mt-1.5">
+                <FilterEditor
+                  dataSetId={ds}
+                  ctx={ctx.params}
+                  filters={ov.filters ?? {}}
+                  onChange={(f) => onAttrs({ overrides: { ...ov, filters: f, filterMode: ov.filterMode ?? "merge" } })}
+                />
+              </div>
+              <div className="text-[11px] text-ink-3 mt-1">当前模式：{{ inherit: "继承资产筛选", merge: "资产筛选 + 节点筛选", replace: "仅使用节点筛选（空 = 清除资产默认筛选）" }[(ov.filterMode ?? (ov.filters ? "merge" : "inherit")) as "inherit"]}</div>
             </Field>
           )}
+          <Field label="展示模式（displayMode）">
+            <Segmented
+              size="sm"
+              value={(sel.attrs.displayMode === "summary" ? "summary" : "inline") as "inline" | "summary"}
+              onChange={(v) => onAttrs({ displayMode: v })}
+              options={[
+                { value: "inline", label: "完整" },
+                { value: "summary", label: "摘要" },
+              ]}
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="宽度">
               <Select<number>

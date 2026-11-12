@@ -50,6 +50,8 @@ import {
 import { RecordsTable } from "../components/TableViews";
 import { InsertModal } from "./AssetCenter";
 import { useDraft } from "./useDraft";
+import { SidePanel } from "../ui/SidePanel";
+import { SharedDatasetSelect, MeasureBindingEditor, VariableFilterEditor } from "../components/BindingControls";
 
 const SORTS = [
   { value: "none", label: "默认（分类顺序）" },
@@ -114,10 +116,11 @@ export function ChartStudio() {
     set({ filters: toggleFilter(def.filters, d.dimension, d.value) });
     setFocus(null);
   };
-  const changeDataset = (ds: DataSetId) => {
+  const changedDataset = (ds: DataSetId): ChartDef => {
     const m = DATASETS[ds];
     const dims = def.dimensions.filter((d) => m.dims.includes(d));
-    set({
+    return {
+      ...def,
       dataSetId: ds,
       dimensions: dims.length
         ? dims
@@ -125,8 +128,12 @@ export function ChartStudio() {
       measure: m.measures.includes(def.measure) ? def.measure : m.measures[0],
       secondaryMeasure: undefined,
       filters: {},
-    });
+      measureBinding: undefined,
+      variableFilters: undefined,
+      datasetRef: undefined,
+    };
   };
+  const changeDataset = (ds: DataSetId) => setDraft(changedDataset(ds));
   const tasks = model.tasks;
   const pct = (v: number | null) =>
     model.total && v !== null && model.timeMode === "snapshot" && def.aggregation !== "none"
@@ -184,7 +191,7 @@ export function ChartStudio() {
       />
       <div className="flex-1 min-h-0 flex">
         {!preview && (
-          <aside className="w-[284px] shrink-0 bg-white border-r border-line overflow-auto scroll-thin">
+          <SidePanel id="studioLeft" side="left" title="数据与字段">
             <Section title="图表资产">
               <Select
                 value={assetId!}
@@ -209,6 +216,11 @@ export function ChartStudio() {
               )}
             </Section>
             <Section title="数据与范围">
+              <SharedDatasetSelect
+                value={def.datasetRef}
+                sourceKey={def.dataSetId}
+                onChange={(ref, src) => (src !== def.dataSetId ? setDraft({ ...changedDataset(src), datasetRef: ref }) : set({ datasetRef: ref }))}
+              />
               <Field
                 label="演示数据集"
                 hint={<span className="font-mono">{sliceSourceSummary(def)}</span>}
@@ -248,6 +260,12 @@ export function ChartStudio() {
                   exclude={["simulationId", "branch"]}
                 />
               </Field>
+              <MeasureBindingEditor
+                dataSetId={def.dataSetId}
+                binding={def.measureBinding}
+                onChange={(b) => set({ measureBinding: b })}
+                fieldEditor={
+                  <>
               <Field label={def.chartType === "dualAxis" ? "左轴指标" : "指标"}>
                 <Select
                   value={def.measure}
@@ -283,6 +301,9 @@ export function ChartStudio() {
                   ]}
                 />
               </Field>
+                  </>
+                }
+              />
               <Field label="排序">
                 <Select
                   value={def.sort}
@@ -292,6 +313,7 @@ export function ChartStudio() {
               </Field>
             </Section>
             <Section title="筛选条件">
+              <VariableFilterEditor dataSetId={def.dataSetId} value={def.variableFilters ?? []} onChange={(v) => set({ variableFilters: v.length ? v : undefined })} />
               <FilterEditor
                 dataSetId={def.dataSetId}
                 ctx={def.viewParams}
@@ -300,7 +322,7 @@ export function ChartStudio() {
                 labelMode={def.style.labelMode}
               />
             </Section>
-          </aside>
+          </SidePanel>
         )}
 
         <div className="flex-1 min-w-0 overflow-auto scroll-thin p-4 space-y-3">
@@ -379,7 +401,9 @@ export function ChartStudio() {
                         <th className="text-right px-3 font-semibold">
                           {def.aggregation === "count"
                             ? "COUNT"
-                            : `SUM(${fieldLabel(def.measure)})`}
+                            : def.measureBinding?.kind === "expression"
+                              ? `ƒ ${def.measureBinding.assetId}@r${def.measureBinding.revision}`
+                              : `SUM(${fieldLabel(def.measure)})`}
                         </th>
                         <th className="text-right px-3 font-semibold">占比</th>
                         <th className="text-right px-3 font-semibold">记录数</th>
@@ -550,7 +574,7 @@ export function ChartStudio() {
         </div>
 
         {!preview && (
-          <aside className="w-[268px] shrink-0 bg-white border-l border-line overflow-auto scroll-thin">
+          <SidePanel id="studioRight" side="right" title="图表属性">
             <Section title="图型">
               <div className="grid grid-cols-2 gap-1.5">
                 {CHART_TYPES.map((t) => (
@@ -695,7 +719,7 @@ export function ChartStudio() {
                 恢复默认样式设置
               </Button>
             </div>
-          </aside>
+          </SidePanel>
         )}
       </div>
 

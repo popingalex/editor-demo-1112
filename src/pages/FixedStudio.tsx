@@ -55,6 +55,9 @@ import { PagedPreview, STYLE_CLS, STYLE_LABEL, SheetTable } from "../components/
 import { DataContextBar, FilterBar, FilterEditor } from "../components/DataControls";
 import { InsertModal } from "./AssetCenter";
 import { useDraft } from "./useDraft";
+import { SidePanel } from "../ui/SidePanel";
+import { ResourcePicker } from "../components/Catalog";
+import { parseRefBinding } from "../data/fixedModel";
 
 type Mode = "design" | "fill" | "paged";
 
@@ -122,6 +125,8 @@ export function FixedStudio() {
   const [publish, setPublish] = useState(false);
   const [note, setNote] = useState("");
   const [insert, setInsert] = useState(false);
+  const [bindPicker, setBindPicker] = useState<"variable" | "expression" | null>(null);
+  const resources = useApp((s) => s.resources);
   const dragging = useRef(false);
   const ex = useMemo(() => (def ? expandFixed(def) : null), [def]);
   useEffect(() => {
@@ -151,6 +156,10 @@ export function FixedStudio() {
     ? (region.columnBindings[rect.c0] ?? cell.binding ?? "")
     : (cell.binding ?? "");
 
+  const refB = binding ? parseRefBinding(binding) : null;
+  const bindKind: "text" | "field" | "variable" | "expression" = !binding ? "text" : refB ? (refB.kind === "expr" ? "expression" : "variable") : "field";
+  const refRec = refB ? resources[refB.assetId] : undefined;
+  const previewCell = ex.rows.flatMap((r) => r.cells).find((c) => c && c.srcKey === key) ?? undefined;
   const update = (fn: (d: FixedDef) => FixedDef) => setDraft((d) => (d ? fn(d) : d));
   const setCell = (p: Partial<FixedCell>) =>
     update((d) => ({ ...d, cells: { ...d.cells, [key]: { ...d.cells[key], ...p } } }));
@@ -621,7 +630,7 @@ export function FixedStudio() {
           {mode === "paged" && <PagedPreview def={def} expanded={ex} zoom={zoom} />}
         </div>
 
-        <aside className="w-[320px] shrink-0 bg-white border-l border-line flex flex-col">
+        <SidePanel id="studioRight" side="right" title="单元格 · 绑定 · 纸张">
           <div className="flex border-b border-line">
             {(
               [
@@ -655,14 +664,55 @@ export function FixedStudio() {
                     </div>
                   )}
                   {region && <Badge tone="green">动态行 {region.id}：绑定写入动态区列配置</Badge>}
-                  <Field label="数据绑定">
-                    <Select
-                      value={binding}
-                      onChange={setBinding}
-                      options={bindingOptions(def, region)}
-                      disabled={!isSingleCell}
+                  <Field label="绑定类型">
+                    <Segmented
+                      size="sm"
+                      value={bindKind}
+                      onChange={(v) => {
+                        if (v === "text") setBinding("");
+                        else if (v === "variable" || v === "expression") setBindPicker(v);
+                        else if (!binding || parseRefBinding(binding)) setBinding(bindingOptions(def, region)[1]?.value ?? "");
+                      }}
+                      options={[
+                        { value: "text", label: "纯文本" },
+                        { value: "field", label: "数据字段" },
+                        { value: "variable", label: "变量" },
+                        { value: "expression", label: "表达式" },
+                      ]}
                     />
                   </Field>
+                  {bindKind === "field" && (
+                    <Field label={region ? "字段 / 行级汇总（兼容 sum()/count()）" : "合计 / 旧变量名（兼容）"}>
+                      <Select value={binding} onChange={setBinding} options={bindingOptions(def, region)} disabled={!isSingleCell} />
+                    </Field>
+                  )}
+                  {(bindKind === "variable" || bindKind === "expression") && refB && (
+                    <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-2 text-[12px] space-y-1" data-cell-binding={binding}>
+                      <div className="flex items-center gap-1.5">
+                        <b className="truncate">{refRec?.title ?? "（缺失）"}</b>
+                        <span className="font-mono text-[10.5px] text-ink-3">
+                          {refB.assetId}@r{refB.revision}
+                        </span>
+                      </div>
+                      {refRec && refRec.latest > refB.revision && (
+                        <div className="flex items-center gap-1.5 text-amber-800 text-[11.5px]">
+                          有新版本 r{refRec.latest}，当前仍固定 r{refB.revision}
+                          <Button size="xs" variant="subtle" onClick={() => setBinding(`${refB.kind}:${refB.assetId}@${refRec.latest}`)}>
+                            显式升级
+                          </Button>
+                        </div>
+                      )}
+                      <Button size="xs" onClick={() => setBindPicker(bindKind)}>
+                        更换…
+                      </Button>
+                    </div>
+                  )}
+                  {binding && (
+                    <div className={cx("rounded px-2 py-1.5 text-[12px] border", previewCell?.error ? "bg-red-50 border-red-200 text-red-800" : "bg-gray-50 border-line")} data-cell-preview="">
+                      当前上下文结果（{def.viewParams.simulationId} · Tick {def.viewParams.tick ?? "—"}）：<b className="tabular-nums">{previewCell?.text ?? "—"}</b>
+                      {region && <span className="text-ink-3">（动态行：每行按该行记录集合求值{region.groupBy.length ? "，聚合" : "，行级"}）</span>}
+                    </div>
+                  )}
                   <Field label="文本内容" hint="无绑定时显示；可包含 {{变量}}">
                     <textarea
                       value={cell.text ?? ""}
@@ -1006,7 +1056,7 @@ export function FixedStudio() {
               </>
             )}
           </div>
-        </aside>
+        </SidePanel>
       </div>
 
       <Modal
@@ -1047,6 +1097,15 @@ export function FixedStudio() {
         </div>
       </Modal>
       <InsertModal assetId={insert ? asset.assetId : null} onClose={() => setInsert(false)} />
+      <ResourcePicker
+        open={!!bindPicker}
+        onClose={() => setBindPicker(null)}
+        kinds={[bindPicker ?? "expression"]}
+        datasetKey={bindPicker === "expression" && region ? region.dataSetId : undefined}
+        title={`为单元格 ${rcRef(rect.r0, rect.c0)} 绑定共享${bindPicker === "variable" ? "变量" : "表达式"}`}
+        actionLabel="绑定"
+        onPick={(p) => setBinding(`${p.kind === "variable" ? "var" : "expr"}:${p.assetId}@${p.revision}`)}
+      />
     </>
   );
 }
