@@ -338,6 +338,7 @@ export function GeneratePage() {
                                 invalidSelection: "数据范围无效",
                                 missingParam: "缺少参数",
                                 emptyDoc: "空文档",
+                              expressionError: "表达式错误",
                               }[e.kind]
                             }
                           </Badge>

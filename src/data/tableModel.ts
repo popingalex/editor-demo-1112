@@ -10,6 +10,8 @@ import {
   unitOf,
   type PivotResult,
 } from "./engine";
+import { defaultEnv, type Env } from "./registry";
+import { prepareMeasure, revalue } from "./measure";
 
 export interface GroupedRow {
   key: string[];
@@ -32,7 +34,7 @@ export interface TableModel {
   pivot?: PivotResult;
 }
 
-export function computeTable(def: TableDef): TableModel {
+export function computeTable(def: TableDef, env: Env = defaultEnv()): TableModel {
   const dims =
     def.mode === "grouped"
       ? def.groupBy
@@ -40,7 +42,8 @@ export function computeTable(def: TableDef): TableModel {
         ? [...def.rowDimensions, ...def.columnDimensions]
         : [];
   const timeMode = dims.includes("tick") ? "series" : "snapshot";
-  const unit = def.aggregation === "count" ? "条" : unitOf(def.dataSetId, def.measure, def.filters);
+  const M = prepareMeasure(def, env);
+  const unit = M.unit;
   const base: TableModel = { status: "ok", records: [], total: null, unit };
   if (def.mode === "grouped" && !def.groupBy.length)
     return { ...base, status: "unfit", message: "分组汇总需要至少 1 个分组维度" };
@@ -50,10 +53,15 @@ export function computeTable(def: TableDef): TableModel {
     return { ...base, status: "unfit", message: "同一维度不能同时作为行和列" };
   if (def.mode === "detail" && !def.columns.length)
     return { ...base, status: "unfit", message: "明细表至少需要选择 1 个字段" };
-  const slice = resolveSlice(def.dataSetId, def.viewParams, def.filters, timeMode);
+  if (M.setupError) return { ...base, status: "invalid", message: M.setupError.message };
+  const slice = resolveSlice(def.dataSetId, M.params, M.filters, timeMode, env.data);
   if (slice.status !== "ok") return { ...base, status: slice.status, message: slice.message };
   const records = slice.records;
-  const total = measureValue(records, def.measure, def.aggregation);
+  const total = M.value(records);
+  const done = (m: TableModel): TableModel => {
+    const e = M.error();
+    return e ? { ...base, status: "invalid", message: `表达式求值错误（${e.code}）：${e.message}` } : m;
+  };
 
   if (def.mode === "detail") {
     const rows = [...records];
@@ -67,13 +75,13 @@ export function computeTable(def: TableDef): TableModel {
   if (def.mode === "grouped") {
     const lm = def.labelMode;
     const groups = sortGroups(
-      aggregate(records, def.groupBy, def.measure, def.aggregation),
+      revalue(aggregate(records, def.groupBy, def.measure, def.aggregation), M),
       def.sort,
     );
     const rows: GroupedRow[] = [];
     if (def.groupBy.length > 1 && def.showSubtotals) {
       const first = sortGroups(
-        aggregate(records, [def.groupBy[0]], def.measure, def.aggregation),
+        revalue(aggregate(records, [def.groupBy[0]], def.measure, def.aggregation), M),
         def.sort,
       );
       for (const f of first) {
@@ -109,7 +117,7 @@ export function computeTable(def: TableDef): TableModel {
           level: 0,
         });
     }
-    return { ...base, records, total, groupedRows: rows };
+    return done({ ...base, records, total, groupedRows: rows });
   }
 
   const p = pivot(
@@ -120,5 +128,15 @@ export function computeTable(def: TableDef): TableModel {
     def.aggregation,
     def.sort,
   );
-  return { ...base, records, total, pivot: p };
+  // Every cell, row total, column total and the grand total is evaluated from its own record set,
+  // so non-additive measures (AVG, ratios) are never summed.
+  for (const g of p.cells.values()) g.value = M.value(g.records);
+  for (const [k, recs] of p.rowRecords) p.rowTotals.set(k, M.value(recs));
+  for (const [k, recs] of p.colRecords) p.colTotals.set(k, M.value(recs));
+  p.grand = total;
+  if (def.sort === "valueAsc" || def.sort === "valueDesc") {
+    const dir = def.sort === "valueAsc" ? 1 : -1;
+    p.rowKeys.sort((a, b) => dir * ((p.rowTotals.get(a.join("\u0001")) ?? -Infinity) - (p.rowTotals.get(b.join("\u0001")) ?? -Infinity)));
+  }
+  return done({ ...base, records, total, pivot: p });
 }

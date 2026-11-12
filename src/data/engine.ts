@@ -253,9 +253,10 @@ export function contextRecords(
   ds: DataSetId,
   ctx: DataContext,
   timeMode: "snapshot" | "series" = "snapshot",
+  data: RecordSource = getRecords,
 ): Rec[] {
   const keys = DATASETS[ds].contextKeys;
-  return getRecords(ds).filter((r) => {
+  return data(ds).filter((r) => {
     if (keys.includes("simulationId") && r.simulationId !== ctx.simulationId) return false;
     if (keys.includes("branch") && r.branch !== ctx.branch) return false;
     if (keys.includes("tick") && ctx.tick !== null) {
@@ -286,8 +287,12 @@ export function inapplicableFilters(ds: DataSetId, filters: Filters | undefined)
     .map(([f]) => f);
 }
 
+/** Supplies the records of a dataset — the live DEMO JSON by default, or a frozen snapshot. */
+export type RecordSource = (ds: DataSetId) => Rec[];
+
 export interface Slice {
   status: SliceStatus;
+  code?: string;
   message?: string;
   records: Rec[];
   contextCount: number;
@@ -298,10 +303,22 @@ export function resolveSlice(
   ctx: DataContext,
   filters: Filters | undefined,
   timeMode: "snapshot" | "series" = "snapshot",
+  data: RecordSource = getRecords,
 ): Slice {
   const check = validateContext(ds, ctx);
-  if (!check.ok) return { status: "invalid", message: check.message, records: [], contextCount: 0 };
-  const base = contextRecords(ds, ctx, timeMode);
+  if (!check.ok)
+    return { status: "invalid", code: check.code === "invalidTick" ? "INVALID_TICK" : "INVALID_CONTEXT", message: check.message, records: [], contextCount: 0 };
+  // A filter on a field the dataset does not have must not silently pass every record.
+  const bad = inapplicableFilters(ds, filters);
+  if (bad.length)
+    return {
+      status: "invalid",
+      code: "INVALID_FILTER_FIELD",
+      message: `筛选字段 ${bad.join("、")} 不适用于数据集 ${ds}（该数据集没有此字段）`,
+      records: [],
+      contextCount: 0,
+    };
+  const base = contextRecords(ds, ctx, timeMode, data);
   const records = applyFilters(base, filters);
   if (!records.length) {
     let message = "当前条件下无数据";

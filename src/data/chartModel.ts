@@ -13,6 +13,8 @@ import {
   unitText,
   type Slice,
 } from "./engine";
+import { defaultEnv, type Env } from "./registry";
+import { prepareMeasure, revalue } from "./measure";
 
 export const CHART_TYPES: { id: ChartType; label: string; hint: string }[] = [
   { id: "bar", label: "柱状图", hint: "1–2 个维度 + 数值指标" },
@@ -230,11 +232,13 @@ export interface ChartModel {
   extra?: { label: string; value: string }[];
 }
 
-export function computeChart(def: ChartDef): ChartModel {
+export function computeChart(def: ChartDef, env: Env = defaultEnv()): ChartModel {
   const fit = checkFit(def);
   const timeMode: "snapshot" | "series" = def.dimensions.includes("tick") ? "series" : "snapshot";
-  const slice = resolveSlice(def.dataSetId, def.viewParams, def.filters, timeMode);
-  const unit = def.aggregation === "count" ? "条" : unitOf(def.dataSetId, def.measure, def.filters);
+  const M = prepareMeasure(def, env);
+  const ctxTick = M.params.tick;
+  const slice = resolveSlice(def.dataSetId, M.params, M.filters, timeMode, env.data);
+  const unit = M.unit;
   const base: ChartModel = {
     status: "ok",
     fit,
@@ -250,8 +254,14 @@ export function computeChart(def: ChartDef): ChartModel {
     summary2: [],
   };
   if (!fit.ok) return { ...base, status: "unfit", message: fit.message };
+  if (M.setupError) return { ...base, status: "invalid", message: M.setupError.message };
   if (slice.status !== "ok") return { ...base, status: slice.status, message: slice.message };
   const recs = slice.records;
+  // A formula error in any group surfaces as an explicit invalid state, never as a blank value.
+  const done = (m: ChartModel): ChartModel => {
+    const e = M.error();
+    return e ? { ...base, status: "invalid", message: `表达式求值错误（${e.code}）：${e.message}` } : m;
+  };
   const lm = def.style.labelMode;
   const agg = def.aggregation;
 
@@ -281,16 +291,19 @@ export function computeChart(def: ChartDef): ChartModel {
 
   // In series mode, totals are taken at the selected tick only (snapshot values are not summed across ticks).
   const snapshotRecs =
-    timeMode === "series" ? recs.filter((r) => r.tick === def.viewParams.tick) : recs;
-  const total = measureValue(snapshotRecs, def.measure, agg === "none" ? "sum" : agg);
-  const totalLabel = timeMode === "series" ? `Tick ${def.viewParams.tick} 当前值` : "合计";
+    timeMode === "series" ? recs.filter((r) => r.tick === ctxTick) : recs;
+  const total = M.value(snapshotRecs);
+  const totalLabel = timeMode === "series" ? `Tick ${ctxTick} 当前值` : "合计";
   const toRows = (dim: string, sort = def.sort): SummaryRow[] =>
     sortGroups(
-      aggregate(
-        timeMode === "series" && dim !== "tick" ? snapshotRecs : recs,
-        [dim],
-        def.measure,
-        agg,
+      revalue(
+        aggregate(
+          timeMode === "series" && dim !== "tick" ? snapshotRecs : recs,
+          [dim],
+          def.measure,
+          agg,
+        ),
+        M,
       ),
       sort,
     ).map((g) => ({
@@ -309,7 +322,7 @@ export function computeChart(def: ChartDef): ChartModel {
     const t = measureValue(snapshotRecs, "transferredCount", "sum");
     const g = measureValue(snapshotRecs, "targetCount", "sum");
     extra = [
-      { label: `Tick ${def.viewParams.tick} 累计转移`, value: `${fmt(t)} / ${fmt(g)}` },
+      { label: `Tick ${ctxTick} 累计转移`, value: `${fmt(t)} / ${fmt(g)}` },
       { label: "完成率", value: t !== null && g ? `${Math.round((t / g) * 1000) / 10}%` : "—" },
     ];
   }
@@ -320,7 +333,7 @@ export function computeChart(def: ChartDef): ChartModel {
     const links: { source: string; target: string; value: number }[] = [];
     const stageTotals: number[] = [];
     dims.forEach((d) => {
-      const gs = aggregate(recs, [d], def.measure, agg);
+      const gs = revalue(aggregate(recs, [d], def.measure, agg), M);
       stageTotals.push(gs.reduce((s, g) => s + (g.value ?? 0), 0));
       gs.forEach((g) =>
         nodes.set(`${d}:${g.key[0]}`, {
@@ -332,7 +345,7 @@ export function computeChart(def: ChartDef): ChartModel {
       );
     });
     for (let i = 0; i < dims.length - 1; i++) {
-      aggregate(recs, [dims[i], dims[i + 1]], def.measure, agg).forEach((g) => {
+      revalue(aggregate(recs, [dims[i], dims[i + 1]], def.measure, agg), M).forEach((g) => {
         if ((g.value ?? 0) > 0)
           links.push({
             source: `${dims[i]}:${g.key[0]}`,
@@ -341,7 +354,7 @@ export function computeChart(def: ChartDef): ChartModel {
           });
       });
     }
-    return {
+    return done({
       ...base,
       summary,
       summary2,
@@ -349,7 +362,7 @@ export function computeChart(def: ChartDef): ChartModel {
       totalLabel,
       extra,
       sankey: { nodes: [...nodes.values()], links, stageTotals },
-    };
+    });
   }
 
   const xDim = def.dimensions[0];
@@ -357,7 +370,7 @@ export function computeChart(def: ChartDef): ChartModel {
   let series: ChartModel["series"] = [];
   if (def.chartType === "dualAxis") {
     const secondary = def.secondaryMeasure!;
-    const g1 = new Map(aggregate(recs, [xDim], def.measure, agg).map((g) => [g.key[0], g.value]));
+    const g1 = new Map(revalue(aggregate(recs, [xDim], def.measure, agg), M).map((g) => [g.key[0], g.value]));
     const g2 = new Map(aggregate(recs, [xDim], secondary, "sum").map((g) => [g.key[0], g.value]));
     series = [
       {
@@ -378,7 +391,7 @@ export function computeChart(def: ChartDef): ChartModel {
   } else if (def.dimensions.length === 2) {
     const sDim = def.dimensions[1];
     const cells = new Map(
-      aggregate(recs, [xDim, sDim], def.measure, agg).map((g) => [g.key.join("|"), g.value]),
+      revalue(aggregate(recs, [xDim, sDim], def.measure, agg), M).map((g) => [g.key.join("|"), g.value]),
     );
     series = summary2.map((s) => ({
       key: s.key,
@@ -389,12 +402,12 @@ export function computeChart(def: ChartDef): ChartModel {
     series = [
       {
         key: def.measure,
-        name: `${agg === "count" ? "记录数" : fieldLabel(def.measure)}`,
+        name: M.isExpression ? M.label.replace(/（.*）$/, "") : `${agg === "count" ? "记录数" : fieldLabel(def.measure)}`,
         data: summary.map((s) => s.value),
       },
     ];
   }
-  return { ...base, categories, series, summary, summary2, total, totalLabel, extra };
+  return done({ ...base, categories, series, summary, summary2, total, totalLabel, extra });
 }
 
 /* ---------- ECharts option ---------- */

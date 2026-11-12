@@ -11,6 +11,15 @@ import {
   sortGroups,
 } from "./engine";
 import { rcKey } from "./grid";
+import { applyVarContext, defaultEnv, type Env } from "./registry";
+import { evaluateExpression, evaluateVariable, formatResult } from "./expr";
+import type { DataContext, EvalResult } from "./types";
+
+/** `expr:ID@rev` / `var:ID@rev` structured bindings (legacy sum()/count()/field strings stay valid). */
+export const parseRefBinding = (b: string) => {
+  const m = /^(expr|var):([A-Za-z0-9_-]+)@(\d+)$/.exec(b.trim());
+  return m ? { kind: m[1] as "expr" | "var", assetId: m[2], revision: Number(m[3]) } : null;
+};
 
 export interface ExpCell {
   text: string;
@@ -22,6 +31,7 @@ export interface ExpCell {
   srcKey: string;
   isBinding: boolean;
   isEmptyMsg?: boolean;
+  error?: string;
 }
 export interface ExpRow {
   srcRow: number;
@@ -53,9 +63,9 @@ const DEFAULT_ALIGN: Record<CellStyle, "left" | "center" | "right"> = {
   note: "left",
 };
 
-function regionRows(def: FixedDef, regionIdx: number) {
+function regionRows(def: FixedDef, regionIdx: number, params: DataContext, env: Env) {
   const rg = def.regions[regionIdx];
-  const slice = resolveSlice(rg.dataSetId, def.viewParams, def.filters);
+  const slice = resolveSlice(rg.dataSetId, params, def.filters, "snapshot", env.data);
   if (slice.status !== "ok")
     return { slice, rows: [] as { records: Rec[]; values: Record<string, any> }[] };
   if (rg.groupBy.length) {
@@ -102,16 +112,43 @@ export function estimateLines(text: string, widthPx: number) {
   return lines;
 }
 
-export function expandFixed(def: FixedDef): Expanded {
+export function expandFixed(def: FixedDef, env: Env = defaultEnv()): Expanded {
   const nRows = def.rowHeights.length;
   const nCols = def.colWidths.length;
-  const vars = computeVariables(def.viewParams, { filters: def.filters, reportTitle: def.title });
-  const totalSlice = resolveSlice(def.totalDataSetId, def.viewParams, def.filters);
+  const params = applyVarContext(def.viewParams, env);
+  const vars = computeVariables(params, { filters: def.filters, reportTitle: def.title });
+  const totalSlice = resolveSlice(def.totalDataSetId, params, def.filters, "snapshot", env.data);
   let totalRecords = totalSlice.records;
   if (def.totalDataSetId === "printStressRows" && def.repeatFactor > 1)
     totalRecords = Array.from({ length: def.repeatFactor }, () => totalRecords).flat();
   const regionByRow = new Map(def.regions.map((r, i) => [r.row, i]));
-  const regionData = def.regions.map((_, i) => regionRows(def, i));
+  const regionData = def.regions.map((_, i) => regionRows(def, i, params, env));
+  const fieldsOf = (ds: string) => new Set(Object.keys(env.data(ds as any)[0] ?? {}));
+  /** Resolve one binding; errors are returned explicitly instead of a silent “—”. */
+  const evalBinding = (binding: string, region?: { ds: string; records: Rec[]; values: Record<string, any>; detail: boolean }): { text: string; error?: string } => {
+    const ref = parseRefBinding(binding);
+    const show = (r: EvalResult) => (r.status === "invalid" ? { text: `⚠ ${r.message}`, error: r.message } : { text: formatResult(r) });
+    if (ref?.kind === "expr")
+      return show(
+        evaluateExpression(ref, region ? { params, filters: def.filters, records: region.records, recordsSource: region.ds, row: region.detail ? region.records[0] : undefined } : { params, filters: def.filters }, env),
+      );
+    if (ref?.kind === "var") return show(evaluateVariable(ref, { params, filters: def.filters }, env));
+    if (isAggExpr(binding)) {
+      const field = /\(\s*(\w*)\s*\)/.exec(binding)?.[1];
+      const ds = region?.ds ?? def.totalDataSetId;
+      if (field && !fieldsOf(ds).has(field)) return { text: `⚠ 未知字段 ${field}`, error: `数据集 ${ds} 没有字段 ${field}` };
+      if (region) return { text: fmt(evalExpression(binding, region.records)) };
+      if (totalSlice.status === "invalid") return { text: `⚠ ${totalSlice.message}`, error: totalSlice.message };
+      return { text: totalSlice.status === "ok" ? fmt(evalExpression(binding, totalRecords)) : "无数据" };
+    }
+    if (/\w+\s*\(/.test(binding)) return { text: `⚠ 无法解析公式 ${binding}`, error: `仅支持 sum(字段) / count() 或共享表达式` };
+    if (region) {
+      if (!(binding in region.values) && !fieldsOf(region.ds).has(binding)) return { text: `⚠ 未知字段 ${binding}`, error: `数据集 ${region.ds} 没有字段 ${binding}` };
+      return { text: displayValue(binding, region.values[binding], lm) };
+    }
+    if (binding in vars) return { text: vars[binding] !== null && vars[binding] !== undefined ? String(vars[binding]) : "无数据" };
+    return { text: `⚠ 未知变量 ${binding}`, error: `未定义的变量绑定 ${binding}` };
+  };
   const lm = def.labelMode;
 
   const mergeAt = new Map(def.merges.map((m) => [rcKey(m.r, m.c), m]));
@@ -195,22 +232,12 @@ export function expandFixed(def: FixedDef): Expanded {
           continue;
         }
         let text = "";
+        let error: string | undefined;
         if (binding) {
-          if (rg && data) {
-            const dr = data.rows[k];
-            text = isAggExpr(binding)
-              ? fmt(evalExpression(binding, dr.records))
-              : displayValue(binding, dr.values[binding], lm);
-          } else if (isAggExpr(binding)) {
-            text =
-              totalSlice.status === "ok"
-                ? fmt(evalExpression(binding, totalRecords))
-                : totalSlice.status === "invalid"
-                  ? "无效范围"
-                  : "—";
-          } else
-            text =
-              vars[binding] !== undefined && vars[binding] !== null ? String(vars[binding]) : "—";
+          const dr = rg && data ? data.rows[k] : undefined;
+          const r = evalBinding(binding, rg && dr ? { ds: rg.dataSetId, records: dr.records, values: dr.values, detail: rg.groupBy.length === 0 } : undefined);
+          text = r.text;
+          error = r.error;
         } else text = resolveText(cell?.text ?? "", vars);
         const style = cell?.style ?? "body";
         row.cells[c] = {
@@ -222,6 +249,7 @@ export function expandFixed(def: FixedDef): Expanded {
           cs,
           srcKey: key,
           isBinding: !!binding,
+          error,
         };
       }
       // covered cells by a multi-row merge from a previous output row inside this same template row are handled by `covered`

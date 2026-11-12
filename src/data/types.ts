@@ -38,6 +38,98 @@ export interface ChartStyle {
   yAxisName: string;
 }
 
+/* ---------- shared resources (v2) ---------- */
+
+export interface RevRef {
+  assetId: string
+  revision: number
+}
+export type BindingRef =
+  | { kind: 'field'; datasetId: string; fieldId: string }
+  | { kind: 'variable'; assetId: string; revision: number }
+  | { kind: 'expression'; assetId: string; revision: number }
+
+export type ResourceKind = 'connection' | 'dataset' | 'variable' | 'expression'
+export type CatalogKind = ResourceKind | AssetKind
+
+export interface ConnectionDef {
+  title: string
+  type: 'demo-json'
+  source: string
+  description: string
+  lastValidatedAt: string | null
+  lastValidation: string | null
+}
+export interface FieldMeta {
+  id: string
+  label: string
+  type: 'number' | 'string' | 'boolean'
+  role: 'dimension' | 'measure'
+  unit: string | null
+}
+export interface DatasetDef {
+  title: string
+  connectionRef: RevRef
+  sourceKey: DataSetId
+  fields: FieldMeta[]
+  contextKeys: ('simulationId' | 'branch' | 'tick')[]
+  defaultFilters: Filters
+  description: string
+  warnings: string[]
+}
+export type VarType = 'number' | 'string' | 'boolean' | 'date' | 'enum'
+export type VarSource =
+  | { kind: 'constant' }
+  | { kind: 'context'; path: 'simulationId' | 'branch' | 'tick' | 'reportTitle' }
+  | { kind: 'expression'; ref: RevRef }
+export interface VariableDef {
+  title: string
+  name: string
+  type: VarType
+  scope: 'workspace' | 'template' | 'instance'
+  defaultValue: string | number | boolean | null
+  source: VarSource
+  enumValues?: string[]
+  description: string
+}
+export interface ExpressionDef {
+  title: string
+  name: string
+  datasetRef: RevRef
+  formula: string
+  evaluationMode: 'aggregate' | 'row'
+  returnType: 'number' | 'string' | 'boolean'
+  unit: string | null
+  decimals: number | null
+  description: string
+}
+export type ResourceDef = ConnectionDef | DatasetDef | VariableDef | ExpressionDef
+
+export interface ResourceRecord<D = ResourceDef> {
+  assetId: string
+  kind: ResourceKind
+  title: string
+  seed: boolean
+  createdAt: string
+  updatedAt: string
+  latest: number
+  revisions: AssetRevision<D>[]
+  provenance: string
+  status: 'active' | 'archived'
+}
+export interface ResourceSnapshot {
+  assetId: string
+  kind: ResourceKind
+  revision: number
+  title: string
+  def: ResourceDef
+}
+
+export type EvalResult =
+  | { status: 'ok'; value: number | string | boolean | null; unit?: string | null }
+  | { status: 'empty'; message: string }
+  | { status: 'invalid'; code: string; message: string; expression?: string }
+
 export interface ChartDef {
   title: string;
   chartType: ChartType;
@@ -50,6 +142,12 @@ export interface ChartDef {
   filters: Filters;
   sort: SortMode;
   style: ChartStyle;
+  /** v2: shared dataset reference (dataSetId stays the source key) */
+  datasetRef?: RevRef;
+  /** v2: structured measure binding (takes precedence over measure + aggregation) */
+  measureBinding?: BindingRef;
+  /** v2: filters whose value comes from a shared variable */
+  variableFilters?: { field: string; variable: RevRef }[];
 }
 
 export type TableMode = "detail" | "grouped" | "pivot";
@@ -71,6 +169,9 @@ export interface TableDef {
   nullDisplay: "dash" | "zero" | "text";
   labelMode: LabelMode;
   pageSize: number;
+  datasetRef?: RevRef;
+  measureBinding?: BindingRef;
+  variableFilters?: { field: string; variable: RevRef }[];
 }
 
 export type CellStyle = "title" | "info" | "section" | "header" | "body" | "summary" | "note";
@@ -118,6 +219,8 @@ export interface ReportDef {
   title: string;
   doc: JSONContent;
   parameters: DataContext;
+  /** v2: template-scope variable values, keyed by variable assetId */
+  variableValues?: Record<string, string | number | boolean | null>;
 }
 
 export type AssetKind = "chart" | "table" | "fixed" | "report";
@@ -146,6 +249,8 @@ export interface AssetRecord<D = AnyDef> {
   latest: number;
   revisions: AssetRevision<D>[];
   provenance: string;
+  /** v2: soft archive */
+  status?: "active" | "archived";
 }
 
 export interface PersonalView {
@@ -197,6 +302,12 @@ export interface ReportInstance {
   doc: JSONContent;
   revisions: InstanceRevision[];
   currentRevision: number;
+  /** v2: transitive resource snapshots (dataset/variable/expression/connection) */
+  resourceSnapshots?: Record<string, ResourceSnapshot>;
+  /** v2: records of every dataset used, frozen at generation */
+  dataSnapshot?: Partial<Record<DataSetId, Rec[]>>;
+  /** v2: instance-scope variable values, keyed by variable assetId */
+  variableValues?: Record<string, string | number | boolean | null>;
   createdAt: string;
   updatedAt: string;
   provenance: string;
@@ -216,5 +327,10 @@ export interface Publication {
     assetSnapshots: Record<string, AssetSnapshot>;
     resolvedData: ResolvedNodeData[];
     templateRef: { assetId: string; revision: number; title: string };
+    resourceSnapshots?: Record<string, ResourceSnapshot>;
+    dataSnapshot?: Partial<Record<DataSetId, Rec[]>>;
+    variableValues?: Record<string, string | number | boolean | null>;
+    /** inline variable/expression results materialized at publish time */
+    frozenResults?: Record<string, EvalResult>;
   };
 }
